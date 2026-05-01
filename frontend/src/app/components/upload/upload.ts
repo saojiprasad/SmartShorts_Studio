@@ -23,40 +23,89 @@ export class Upload {
   uploadComplete = signal(false);
   errorMessage = signal<string | null>(null);
 
-  // Options
-  clipDuration = signal(90);
-  addSubtitles = signal(false);
+  // Base options
   aspectRatio = signal('9:16');
 
-  // Duration presets
-  durationPresets = [
-    { label: '30s', value: 30 },
-    { label: '45s', value: 45 },
-    { label: '60s', value: 60 },
-    { label: '90s', value: 90 },
-    { label: '120s', value: 120 },
-    { label: '180s', value: 180 },
+  // AI options
+  clippingMode = signal<'smart' | 'fixed'>('smart');
+  contentMode = signal('auto_viral');
+  addSubtitles = signal(true);
+  subtitleStyle = signal('hormozi');
+  cropMode = signal('smart_crop');
+  clipDuration = signal(45); // Used only if mode='fixed'
+  enableBroll = signal(false);
+  enableAudio = signal(true);
+  musicVolume = signal(0.14);
+
+  // Presets
+  clippingModes = [
+    { label: 'AI Smart Clips', value: 'smart', desc: 'Auto-detects hooks & energy', icon: 'auto_awesome' },
+    { label: 'Fixed Duration', value: 'fixed', desc: 'Splits strictly by time', icon: 'straighten' }
   ];
 
-  // Aspect ratio presets
+  clipDurations = [
+    { value: 30, label: '30 seconds', icon: 'timer' },
+    { value: 45, label: '45 seconds', icon: 'timer' },
+    { value: 60, label: '60 seconds', icon: 'timer' },
+    { value: 75, label: '75 seconds', icon: 'timer' },
+    { value: 90, label: '90 seconds', icon: 'timer' },
+    { value: 105, label: '105 seconds', icon: 'timer' },
+    { value: 120, label: '120 seconds', icon: 'timer' },
+    { value: 150, label: '150 seconds', icon: 'timer' },
+    { value: 180, label: '180 seconds', icon: 'timer' }
+  ];
+
+  contentModes = [
+    { label: 'Auto Viral', value: 'auto_viral', desc: 'Finds the most engaging moments', icon: 'whatshot' },
+    { label: 'Podcast Viral', value: 'podcast_viral', desc: 'Stories, hooks, debates', icon: 'mic' },
+    { label: 'Documentary', value: 'documentary', desc: 'Editorial story arcs', icon: 'movie' },
+    { label: 'Finance Guru', value: 'finance_guru', desc: 'Money and business clips', icon: 'attach_money' },
+    { label: 'Gaming Streamer', value: 'gaming_streamer', desc: 'High-action gameplay', icon: 'sports_esports' },
+    { label: 'Motivational Speaker', value: 'motivational', desc: 'Emotional quote peaks', icon: 'fitness_center' },
+    { label: 'Cinematic Storytelling', value: 'cinematic_storytelling', desc: 'Premium story edits', icon: 'local_movies' },
+    { label: 'Debate/Drama', value: 'debate', desc: 'Arguments and reactions', icon: 'forum' },
+    { label: 'Meme Style', value: 'meme_style', desc: 'Fast impact edits', icon: 'bolt' },
+    { label: 'Educational Tutor', value: 'educational_tutor', desc: 'Useful lessons and explainers', icon: 'school' },
+    { label: 'Luxury/Alpha Style', value: 'luxury_alpha', desc: 'Premium high-status edits', icon: 'diamond' },
+    { label: 'Storytelling', value: 'storytelling', desc: 'Narrative arcs and reveals', icon: 'auto_stories' },
+    { label: 'Dark Doc', value: 'dark_documentary', desc: 'Suspense and mystery', icon: 'visibility' },
+    { label: 'Comedy', value: 'comedy', desc: 'Funny replay moments', icon: 'sentiment_very_satisfied' }
+  ];
+
+  subtitleStyles = [
+    { label: 'Default', value: 'default', desc: 'Standard white text' },
+    { label: 'Hormozi', value: 'hormozi', desc: 'Bold, yellow/white, dynamic' },
+    { label: 'MrBeast', value: 'mrbeast', desc: 'Massive, colorful, popping' },
+    { label: 'Iman Gadzhi', value: 'iman', desc: 'Premium creator captions' },
+    { label: 'Podcast', value: 'podcast', desc: 'Clean, centered, minimal' },
+    { label: 'Gaming', value: 'gaming', desc: 'Fast, intense, glowing' },
+    { label: 'Documentary', value: 'documentary', desc: 'Editorial story style' },
+    { label: 'Cinematic', value: 'cinematic', desc: 'Elegant, subtle fading' },
+    { label: 'Minimalist', value: 'minimalist', desc: 'Quiet professional text' }
+  ];
+
+  cropModes = [
+    { label: 'Smart Crop', value: 'smart_crop', desc: 'Face-aware framing' },
+    { label: 'Center Crop', value: 'center_crop', desc: 'Fill screen' },
+    { label: 'Letterbox', value: 'letterbox', desc: 'Black bars' }
+  ];
+
   aspectPresets = [
-    { label: '9:16', value: '9:16', desc: 'Shorts / Reels', icon: 'crop_portrait', res: '1080×1920' },
-    { label: '16:9', value: '16:9', desc: 'YouTube / Landscape', icon: 'crop_landscape', res: '1920×1080' },
-    { label: '1:1', value: '1:1', desc: 'Square / Instagram', icon: 'crop_square', res: '1080×1080' },
-    { label: '4:5', value: '4:5', desc: 'Instagram Feed', icon: 'crop_din', res: '1080×1350' },
+    { label: '9:16', value: '9:16', desc: 'Shorts/Reels', icon: 'crop_portrait' },
+    { label: '16:9', value: '16:9', desc: 'YouTube', icon: 'crop_landscape' },
+    { label: '1:1', value: '1:1', desc: 'Instagram', icon: 'crop_square' },
+    { label: '4:5', value: '4:5', desc: 'Feed', icon: 'crop_din' },
   ];
 
   constructor(private api: ApiService) {}
 
   onDragOver(event: DragEvent): void {
     event.preventDefault();
-    event.stopPropagation();
     this.isDragOver.set(true);
   }
 
   onDragLeave(event: DragEvent): void {
     event.preventDefault();
-    event.stopPropagation();
     this.isDragOver.set(false);
   }
 
@@ -78,28 +127,28 @@ export class Upload {
     }
   }
 
-  handleFile(file: File): void {
-    // Validate file type — accept all common video formats
-    const allowedExts = ['.mp4','.mkv','.avi','.mov','.wmv','.flv','.webm','.mpeg','.mpg','.3gp','.m4v','.ts','.mts','.vob','.ogv'];
-    const ext = '.' + file.name.split('.').pop()!.toLowerCase();
-    if (!file.type.startsWith('video/') && !allowedExts.includes(ext)) {
-      this.errorMessage.set('Please upload a video file (MP4, MKV, AVI, MOV, WebM, etc.).');
+  private handleFile(file: File): void {
+    const validTypes = ['video/mp4', 'video/x-matroska', 'video/x-msvideo', 'video/quicktime', 'video/webm'];
+    const validExts = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.ts', '.vob'];
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+
+    if (!validTypes.includes(file.type) && !validExts.includes(ext)) {
+      this.errorMessage.set('Please select a valid video file (MP4, MKV, AVI, etc).');
       return;
     }
 
-    // Validate file size (5 GB max)
-    const maxSize = 5 * 1024 * 1024 * 1024;
-    if (file.size > maxSize) {
-      this.errorMessage.set('File is too large. Maximum size is 5 GB.');
+    // 5GB limit
+    if (file.size > 5000 * 1024 * 1024) {
+      this.errorMessage.set('File size exceeds 5GB limit.');
       return;
     }
 
-    this.errorMessage.set(null);
     this.selectedFile.set(file);
-    this.uploadComplete.set(false);
+    this.errorMessage.set(null);
   }
 
   formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
     if (bytes < 1024 * 1024) {
       return (bytes / 1024).toFixed(1) + ' KB';
     }
@@ -116,17 +165,16 @@ export class Upload {
     this.errorMessage.set(null);
   }
 
-  setDuration(value: number): void {
-    this.clipDuration.set(value);
-  }
-
-  toggleSubtitles(): void {
-    this.addSubtitles.set(!this.addSubtitles());
-  }
-
-  setAspectRatio(value: string): void {
-    this.aspectRatio.set(value);
-  }
+  // Setters for UI
+  setClippingMode(val: string) { this.clippingMode.set(val as 'smart' | 'fixed'); }
+  setContentMode(val: string) { this.contentMode.set(val); }
+  setDuration(val: number) { this.clipDuration.set(val); }
+  setAspectRatio(val: string) { this.aspectRatio.set(val); }
+  setCropMode(val: string) { this.cropMode.set(val); }
+  setSubtitleStyle(val: string) { this.subtitleStyle.set(val); }
+  toggleSubtitles() { this.addSubtitles.set(!this.addSubtitles()); }
+  toggleBroll() { this.enableBroll.set(!this.enableBroll()); }
+  toggleAudio() { this.enableAudio.set(!this.enableAudio()); }
 
   startUpload(): void {
     const file = this.selectedFile();
@@ -139,9 +187,7 @@ export class Upload {
     this.api.uploadVideo(file).subscribe({
       next: (event) => {
         if (event.type === HttpEventType.UploadProgress) {
-          const progress = event.total
-            ? Math.round((100 * event.loaded) / event.total)
-            : 0;
+          const progress = event.total ? Math.round((100 * event.loaded) / event.total) : 0;
           this.uploadProgress.set(progress);
         } else if (event.type === HttpEventType.Response) {
           const body = event.body;
@@ -149,8 +195,6 @@ export class Upload {
             this.isUploading.set(false);
             this.uploadComplete.set(true);
             this.uploadProgress.set(100);
-
-            // Auto-start processing
             this.startProcessing(body.jobId);
           }
         }
@@ -166,7 +210,20 @@ export class Upload {
   private startProcessing(jobId: string): void {
     this.isProcessing.set(true);
 
-    this.api.startProcessing(jobId, this.clipDuration(), this.addSubtitles(), this.aspectRatio()).subscribe({
+    const options = {
+      clippingMode: this.clippingMode(),
+      mode: this.contentMode(),
+      clipDuration: this.clipDuration(),
+      aspectRatio: this.aspectRatio(),
+      cropMode: this.cropMode(),
+      addSubtitles: this.addSubtitles(),
+      enableBroll: this.enableBroll(),
+      enableAudio: this.enableAudio(),
+      musicVolume: this.musicVolume(),
+      subtitleStyle: this.subtitleStyle()
+    };
+
+    this.api.startProcessing(jobId, options).subscribe({
       next: () => {
         this.isProcessing.set(false);
         this.jobStarted.emit(jobId);

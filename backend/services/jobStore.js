@@ -9,10 +9,18 @@
  *  - clips:           array of { name, path, partNumber, size, duration }
  *  - error:           error message if status === 'failed'
  *  - originalFile:    path to the uploaded file
- *  - options:         { clipDuration, addSubtitles }
+ *  - options:         { clipDuration, addSubtitles, aspectRatio, mode, clippingMode, subtitleStyle, cropMode }
+ *  - currentStep:     name of current pipeline step
+ *  - pipelineSteps:   list of all steps
+ *  - viralScore:      overall job score
+ *  - thumbnails:      generated thumbnail paths
+ *  - titles:          generated titles
  */
 
+const { EventEmitter } = require('events');
+
 const jobs = new Map();
+const jobEvents = new EventEmitter();
 
 const JobStatus = {
   UPLOADED: 'uploaded',
@@ -21,9 +29,6 @@ const JobStatus = {
   FAILED: 'failed'
 };
 
-/**
- * Create a new job entry.
- */
 function createJob(jobId, originalFile) {
   const job = {
     jobId,
@@ -35,32 +40,32 @@ function createJob(jobId, originalFile) {
     error: null,
     originalFile,
     options: {},
+    currentStep: null,
+    currentStepDescription: null,
+    pipelineSteps: [],
+    analysis: null,
+    viralScore: 0,
+    thumbnails: [],
+    titles: [],
     createdAt: new Date().toISOString()
   };
   jobs.set(jobId, job);
+  jobEvents.emit('updated', job);
   return job;
 }
 
-/**
- * Get a job by ID. Returns null if not found.
- */
 function getJob(jobId) {
   return jobs.get(jobId) || null;
 }
 
-/**
- * Update fields on an existing job.
- */
 function updateJob(jobId, updates) {
   const job = jobs.get(jobId);
   if (!job) return null;
   Object.assign(job, updates);
+  jobEvents.emit('updated', job);
   return job;
 }
 
-/**
- * Get all jobs (for listing/debugging).
- */
 function getAllJobs() {
   return Array.from(jobs.values());
 }
@@ -70,5 +75,6 @@ module.exports = {
   createJob,
   getJob,
   updateJob,
-  getAllJobs
+  getAllJobs,
+  jobEvents
 };

@@ -75,67 +75,152 @@
   @if (selectedFile() && !isUploading() && !uploadComplete()) {
     <div class="options-panel glass" id="options-panel">
       <h3>
-        <span class="material-icons-round">tune</span>
-        Processing Options
+        <span class="material-icons-round">auto_awesome</span>
+        Viral Shorts Factory
       </h3>
 
-      <div class="option-group">
-        <label class="option-label">Clip Duration</label>
-        <div class="duration-presets">
-          @for (preset of durationPresets; track preset.value) {
-            <button
-              class="preset-btn"
-              [class.active]="clipDuration() === preset.value"
-              (click)="setDuration(preset.value)"
-            >
-              {{ preset.label }}
-            </button>
-          }
+      <div class="options-grid">
+        <!-- Clipping Mode -->
+        <div class="option-group">
+          <label class="option-label">Clipping Engine</label>
+          <div class="preset-grid 2-col">
+            @for (mode of clippingModes; track mode.value) {
+              <button
+                class="aspect-btn"
+                [class.active]="clippingMode() === mode.value"
+                (click)="setClippingMode(mode.value)"
+              >
+                <span class="material-icons-round">{{ mode.icon }}</span>
+                <div class="aspect-info">
+                  <span class="aspect-label">{{ mode.label }}</span>
+                  <span class="aspect-desc">{{ mode.desc }}</span>
+                </div>
+              </button>
+            }
+          </div>
         </div>
-      </div>
 
-      <div class="option-group">
-        <label class="option-label">Aspect Ratio</label>
-        <div class="aspect-presets">
-          @for (preset of aspectPresets; track preset.value) {
-            <button
-              class="aspect-btn"
-              [class.active]="aspectRatio() === preset.value"
-              (click)="setAspectRatio(preset.value)"
-              id="btn-aspect-{{ preset.value }}"
-            >
-              <span class="material-icons-round">{{ preset.icon }}</span>
-              <div class="aspect-info">
-                <span class="aspect-label">{{ preset.label }}</span>
-                <span class="aspect-desc">{{ preset.desc }}</span>
-              </div>
-            </button>
-          }
-        </div>
-      </div>
+        <!-- Content Mode OR Duration (Dynamic) -->
+        <div class="option-group">
+          <label class="option-label">
+            {{ clippingMode() === 'smart' ? 'Content Type (AI Mode)' : 'Clip Duration (Fixed Mode)' }}
+          </label>
 
-      <div class="option-group">
-        <label class="option-label">Add Subtitles</label>
-        <div class="toggle-row">
-          <button
-            class="toggle-btn"
-            [class.active]="addSubtitles()"
-            (click)="toggleSubtitles()"
-            id="btn-toggle-subtitles"
-          >
-            <div class="toggle-track">
-              <div class="toggle-thumb"></div>
+          @if (clippingMode() === 'smart') {
+            <div class="duration-presets content-modes">
+              @for (mode of contentModes; track mode.value) {
+                <button
+                  class="preset-btn with-icon"
+                  [class.active]="contentMode() === mode.value"
+                  (click)="setContentMode(mode.value)"
+                >
+                  <div class="btn-content" style="display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span class="material-icons-round">{{ mode.icon }}</span>
+                      <span style="font-weight: 600;">{{ mode.label }}</span>
+                    </div>
+                    <span style="font-size: 0.75rem; opacity: 0.8; text-align: center;">{{ mode.desc }}</span>
+                  </div>
+                </button>
+              }
             </div>
-          </button>
-          <span class="toggle-hint">
-            {{ addSubtitles() ? 'Whisper will generate subtitles' : 'No subtitles' }}
-          </span>
+          } @else {
+            <div class="duration-presets">
+              @for (preset of clipDurations; track preset.value) {
+                <button
+                  class="preset-btn"
+                  [class.active]="clipDuration() === preset.value"
+                  (click)="setDuration(preset.value)"
+                >
+                  {{ preset.label }}
+                </button>
+              }
+            </div>
+          }
         </div>
+
+        <!-- Aspect Ratio -->
+        <div class="option-group">
+          <label class="option-label">Output Format</label>
+          <div class="aspect-presets">
+            @for (preset of aspectPresets; track preset.value) {
+              <button
+                class="aspect-btn format-btn"
+                [class.active]="aspectRatio() === preset.value"
+                (click)="setAspectRatio(preset.value)"
+              >
+                <span class="material-icons-round">{{ preset.icon }}</span>
+                <div class="aspect-info">
+                  <span class="aspect-label">{{ preset.label }}</span>
+                </div>
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- Enhancements -->
+        <div class="option-group">
+          <h3>Enhancements</h3>
+          <div class="toggles-row" style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+            <label class="toggle-switch">
+              <input type="checkbox" [checked]="addSubtitles()" (change)="toggleSubtitles()">
+              <span class="slider"></span>
+              <span class="toggle-label">Enable Viral Subtitles</span>
+            </label>
+            <label class="toggle-switch">
+              <input type="checkbox" [checked]="enableBroll()" (change)="toggleBroll()">
+              <span class="slider"></span>
+              <span class="toggle-label">Inject Local B-Roll</span>
+            </label>
+            <label class="toggle-switch">
+              <input type="checkbox" [checked]="enableAudio()" (change)="toggleAudio()">
+              <span class="slider"></span>
+              <span class="toggle-label">Sound Design Mix</span>
+            </label>
+          </div>
+
+          <!-- Subtitle Styles (Conditionally shown if Subtitles enabled) -->
+          @if (addSubtitles()) {
+            <div class="subtitle-styles mt-3">
+              <div class="duration-presets">
+                @for (style of subtitleStyles; track style.value) {
+                  <button
+                    class="preset-btn style-btn"
+                    [class.active]="subtitleStyle() === style.value"
+                    (click)="setSubtitleStyle(style.value)"
+                    style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px;"
+                  >
+                    <span style="font-weight: 600;">{{ style.label }}</span>
+                    <span style="font-size: 0.75rem; opacity: 0.8; text-align: center;">{{ style.desc }}</span>
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- Crop Mode -->
+        <div class="option-group">
+          <label class="option-label">Framing / Cropping</label>
+          <div class="duration-presets crop-modes">
+            @for (mode of cropModes; track mode.value) {
+              <button
+                class="preset-btn"
+                [class.active]="cropMode() === mode.value"
+                (click)="setCropMode(mode.value)"
+                [title]="mode.desc"
+              >
+                {{ mode.label }}
+              </button>
+            }
+          </div>
+        </div>
+
       </div>
 
       <button class="btn-process" (click)="startUpload()" id="btn-start-upload">
-        <span class="material-icons-round">rocket_launch</span>
-        Upload & Process
+        <span class="material-icons-round">auto_awesome</span>
+        Generate Viral Shorts
       </button>
     </div>
   }
@@ -144,7 +229,7 @@
   @if (isProcessing()) {
     <div class="processing-indicator" id="processing-indicator">
       <div class="spinner"></div>
-      <span>Starting processing pipeline...</span>
+      <span>Starting AI shorts factory...</span>
     </div>
   }
 </section>

@@ -1,5 +1,5 @@
 /**
- * API Routes — Video Splitter for Shorts
+ * API Routes - SmartShorts Studio
  *
  * Endpoints:
  *   POST /api/upload           Upload an MP4 video
@@ -95,7 +95,19 @@ router.post('/upload', upload.single('video'), (req, res) => {
 // Start processing an uploaded video.
 // Body: { jobId, clipDuration?: number, addSubtitles?: boolean }
 router.post('/process', (req, res) => {
-  const { jobId, clipDuration, addSubtitles, aspectRatio } = req.body;
+  const {
+    jobId,
+    clipDuration,
+    addSubtitles,
+    aspectRatio,
+    cropMode,
+    enableBroll,
+    subtitleStyle,
+    clippingMode,
+    mode,
+    enableAudio,
+    musicVolume
+  } = req.body;
 
   if (!jobId) {
     return res.status(400).json({ error: 'jobId is required' });
@@ -115,13 +127,22 @@ router.post('/process', (req, res) => {
     options: {
       clipDuration: clipDuration || parseInt(process.env.DEFAULT_CLIP_DURATION) || 90,
       addSubtitles: addSubtitles || false,
-      aspectRatio: aspectRatio || '9:16'
+      aspectRatio: aspectRatio || '9:16',
+      cropMode: cropMode || 'smart_crop',
+      enableBroll: enableBroll || false,
+      enableAudio: enableAudio !== false,
+      musicVolume: typeof musicVolume === 'number' ? musicVolume : 0.14,
+      subtitleStyle: subtitleStyle || 'hormozi',
+      clippingMode: clippingMode || 'smart',
+      mode: mode || 'auto_viral'
     }
   });
 
   // Fire-and-forget async processing
   const updatedJob = getJob(jobId);
-  processVideo(updatedJob);
+  processVideo(updatedJob).catch(error => {
+    console.error(`Processing failed for job ${jobId}:`, error);
+  });
 
   res.json({
     jobId,
@@ -146,6 +167,13 @@ router.get('/status/:jobId', (req, res) => {
     totalClips: job.totalClips,
     processedClips: job.processedClips,
     clips: job.clips,
+    analysis: job.analysis,
+    thumbnails: job.thumbnails,
+    titles: job.titles,
+    options: job.options,
+    currentStep: job.currentStep,
+    currentStepDescription: job.currentStepDescription,
+    pipelineSteps: job.pipelineSteps,
     error: job.error
   });
 });
@@ -172,7 +200,10 @@ router.get('/clips/:jobId', (req, res) => {
     jobId: job.jobId,
     status: 'completed',
     totalClips: job.totalClips,
-    clips: job.clips
+    clips: job.clips,
+    analysis: job.analysis,
+    thumbnails: job.thumbnails,
+    titles: job.titles
   });
 });
 

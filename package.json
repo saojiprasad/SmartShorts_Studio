@@ -1,7 +1,7 @@
 {
   "name": "video-splitter-for-shorts",
   "version": "1.0.0",
-  "description": "Upload a video and automatically split it into vertical short clips ready for YouTube Shorts, Instagram Reels, and TikTok.",
+  "description": "Upload one long video and automatically generate edited viral shorts with captions, thumbnails, sound design, and SEO metadata.",
   "private": true,
   "scripts": {
     "install:all": "cd backend && npm install && cd ../frontend && npm install",

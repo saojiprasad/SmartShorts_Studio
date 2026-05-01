@@ -25,11 +25,63 @@ export interface ProcessResponse {
 
 export interface Clip {
   name: string;
-  partNumber: number;
   path: string;
+  partNumber: number;
   size: string;
   sizeBytes: number;
   duration: string;
+  start?: number;
+  end?: number;
+  viralScore?: number;
+  grade?: string;
+  hookText?: string;
+  title?: string;
+  description?: string;
+  hashtags?: string[];
+  reason?: string;
+  emotion?: string;
+  details?: {
+    hookScore?: number;
+    energyScore?: number;
+    sceneScore?: number;
+    pacingScore?: number;
+    retentionScore?: number;
+    engagementPrediction?: number;
+    replayPotential?: number;
+  };
+  tips?: string[];
+  thumbnails?: {
+    shortsCover?: string;
+    youtubeThumbnail?: string;
+    instagramCover?: string;
+  };
+  editPlan?: {
+    mood?: string;
+    pacing?: {
+      cutEverySeconds?: number;
+      attentionResetCount?: number;
+      retentionStrategy?: string;
+    };
+    audio?: {
+      musicMood?: string;
+      ducking?: boolean;
+      cues?: unknown[];
+    };
+    visual?: {
+      colorGrade?: string;
+      zoomStyle?: string;
+      effects?: unknown[];
+    };
+    broll?: unknown[];
+    layers?: { type: string; name: string }[];
+  };
+  seo?: {
+    title: string;
+    description: string;
+    hashtags: string[];
+    cta?: string;
+    platform?: Record<string, unknown>;
+  };
 }
 
 export interface JobStatus {
@@ -40,6 +92,18 @@ export interface JobStatus {
   processedClips: number;
   clips: Clip[];
   error: string | null;
+  currentStep?: string;
+  currentStepDescription?: string;
+  pipelineSteps?: string[];
+  analysis?: {
+    totalDuration?: number;
+    mode?: string;
+    selectedMoments?: unknown[];
+    metadata?: Record<string, unknown>;
+  };
+  thumbnails?: unknown[];
+  titles?: string[];
+  options?: Record<string, unknown>;
 }
 
 export interface ClipsResponse {
@@ -76,12 +140,10 @@ export class ApiService {
   /**
    * Start processing a previously uploaded video.
    */
-  startProcessing(jobId: string, clipDuration: number = 90, addSubtitles: boolean = false, aspectRatio: string = '9:16'): Observable<ProcessResponse> {
+  startProcessing(jobId: string, options: any): Observable<ProcessResponse> {
     return this.http.post<ProcessResponse>(`${API_BASE}/process`, {
       jobId,
-      clipDuration,
-      addSubtitles,
-      aspectRatio
+      ...options
     });
   }
 

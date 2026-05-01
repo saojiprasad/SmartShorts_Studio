@@ -1,37 +1,47 @@
-/**
- * FFmpeg Utility Functions
- *
- * Wraps all FFmpeg operations used by the video processing pipeline.
- * Each function spawns FFmpeg as a child process and returns a Promise.
- */
-
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-/**
- * Run an FFmpeg command and return a promise.
- *
- * @param {string[]} args - FFmpeg CLI arguments
- * @param {string}   label - Human-readable label for logging
- * @returns {Promise<void>}
- */
+const ROOT_DIR = path.resolve(__dirname, '../..');
+const LOCAL_FFMPEG = process.platform === 'win32'
+  ? path.join(ROOT_DIR, 'ffmpeg', 'ffmpeg.exe')
+  : path.join(ROOT_DIR, 'ffmpeg', 'ffmpeg');
+const LOCAL_FFPROBE = process.platform === 'win32'
+  ? path.join(ROOT_DIR, 'ffmpeg', 'ffprobe.exe')
+  : path.join(ROOT_DIR, 'ffmpeg', 'ffprobe');
+
+const RESOLUTION_MAP = {
+  '9:16': { w: 1080, h: 1920 },
+  '16:9': { w: 1920, h: 1080 },
+  '1:1': { w: 1080, h: 1080 },
+  '4:5': { w: 1080, h: 1350 }
+};
+
+function getFfmpegCommand() {
+  return fs.existsSync(LOCAL_FFMPEG) ? LOCAL_FFMPEG : 'ffmpeg';
+}
+
+function getFfprobeCommand() {
+  return fs.existsSync(LOCAL_FFPROBE) ? LOCAL_FFPROBE : 'ffprobe';
+}
+
 function runFFmpeg(args, label = 'FFmpeg') {
   return new Promise((resolve, reject) => {
-    console.log(`  ⚙️  [${label}] ffmpeg ${args.join(' ')}`);
+    const command = getFfmpegCommand();
+    console.log(`  [${label}] ${path.basename(command)} ${args.join(' ')}`);
 
-    const proc = spawn('ffmpeg', args, {
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
-
+    const proc = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
-    proc.stderr.on('data', chunk => { stderr += chunk.toString(); });
+
+    proc.stderr.on('data', chunk => {
+      stderr += chunk.toString();
+    });
 
     proc.on('close', code => {
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`[${label}] FFmpeg exited with code ${code}:\n${stderr.slice(-500)}`));
+        reject(new Error(`[${label}] FFmpeg exited with code ${code}:\n${stderr.slice(-1200)}`));
       }
     });
 
@@ -41,17 +51,9 @@ function runFFmpeg(args, label = 'FFmpeg') {
   });
 }
 
-/**
- * Probe a video file to get its duration in seconds.
- *
- * Uses ffprobe to extract the duration. Falls back to 0 on error.
- *
- * @param {string} inputPath
- * @returns {Promise<number>} Duration in seconds
- */
 function getVideoDuration(inputPath) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('ffprobe', [
+  return new Promise(resolve => {
+    const proc = spawn(getFfprobeCommand(), [
       '-v', 'error',
       '-show_entries', 'format=duration',
       '-of', 'default=noprint_wrappers=1:nokey=1',
@@ -59,123 +61,179 @@ function getVideoDuration(inputPath) {
     ]);
 
     let output = '';
-    proc.stdout.on('data', chunk => { output += chunk.toString(); });
+    proc.stdout.on('data', chunk => {
+      output += chunk.toString();
+    });
 
-    proc.on('close', code => {
+    proc.on('close', () => {
       const duration = parseFloat(output.trim());
-      resolve(isNaN(duration) ? 0 : duration);
+      resolve(Number.isFinite(duration) ? duration : 0);
     });
 
     proc.on('error', () => resolve(0));
   });
 }
 
-/**
- * Split a video into segments of a given duration.
- *
- * Uses FFmpeg's segment muxer which copies the streams (no re-encoding)
- * for fast splitting:
- *   ffmpeg -i input.mp4 -c copy -map 0 -segment_time 90
- *          -f segment -reset_timestamps 1 output_%03d.mp4
- *
- * @param {string} inputPath   - Path to the source video
- * @param {string} outputDir   - Directory to write segments into
- * @param {number} duration    - Segment duration in seconds (default 90)
- * @returns {Promise<string[]>} Array of segment file paths
- */
 async function splitVideo(inputPath, outputDir, duration = 90) {
+  fs.mkdirSync(outputDir, { recursive: true });
   const pattern = path.join(outputDir, 'segment_%03d.mp4');
 
   await runFFmpeg([
     '-i', inputPath,
-    '-c', 'copy',          // Stream copy — no re-encoding, very fast
-    '-map', '0:v:0',       // Only the first video stream
-    '-map', '0:a?',        // Audio stream if present (? = optional, won't fail if missing)
+    '-c', 'copy',
+    '-map', '0:v:0',
+    '-map', '0:a?',
     '-segment_time', String(duration),
-    '-f', 'segment',       // Use the segment muxer
+    '-f', 'segment',
     '-reset_timestamps', '1',
+    '-y',
     pattern
-  ], 'Split');
+  ], 'Fixed split');
 
-  // Read back which segment files were created
-  const files = fs.readdirSync(outputDir)
-    .filter(f => f.startsWith('segment_') && f.endsWith('.mp4'))
+  return fs.readdirSync(outputDir)
+    .filter(file => file.startsWith('segment_') && file.endsWith('.mp4'))
     .sort()
-    .map(f => path.join(outputDir, f));
-
-  return files;
+    .map(file => path.join(outputDir, file));
 }
 
-/**
- * Resolution presets for different aspect ratios.
- * Each entry maps a ratio string to { width, height }.
- */
-const RESOLUTION_MAP = {
-  '9:16':  { w: 1080, h: 1920 },  // YouTube Shorts, Reels, TikTok
-  '16:9':  { w: 1920, h: 1080 },  // YouTube landscape
-  '1:1':   { w: 1080, h: 1080 },  // Instagram square
-  '4:5':   { w: 1080, h: 1350 },  // Instagram feed
-};
+async function cutClip(inputPath, outputPath, startSec, durationSec) {
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
-/**
- * Process a single segment: resize to target aspect ratio + overlay part label.
- *
- * Combines scaling and text overlay into a single FFmpeg filter chain
- * for efficiency (one encoding pass instead of two).
- *
- * The scale+pad approach preserves the original aspect ratio and adds
- * black bars (letterboxing/pillarboxing) instead of stretching/distorting.
- *
- * @param {string} inputPath    - Path to the raw segment
- * @param {string} outputPath   - Where to write the processed clip
- * @param {number} partNumber   - Part number for the overlay label
- * @param {string|null} srtPath - Optional path to .srt subtitle file
- * @param {string} aspectRatio  - Target aspect ratio: '9:16', '16:9', '1:1', '4:5'
- * @returns {Promise<void>}
- */
-async function processSegment(inputPath, outputPath, partNumber, srtPath = null, aspectRatio = '9:16') {
-  // Look up resolution, default to 9:16 if unknown
-  const res = RESOLUTION_MAP[aspectRatio] || RESOLUTION_MAP['9:16'];
-  const { w, h } = res;
+  try {
+    await runFFmpeg([
+      '-ss', String(Math.max(0, startSec)),
+      '-i', inputPath,
+      '-t', String(durationSec),
+      '-c', 'copy',
+      '-avoid_negative_ts', 'make_zero',
+      '-map', '0:v:0',
+      '-map', '0:a?',
+      '-y',
+      outputPath
+    ], `Fast cut ${durationSec.toFixed(1)}s`);
+  } catch (error) {
+    console.warn(`  [Cut] Stream-copy cut failed; retrying precise encode. ${error.message}`);
+    await runFFmpeg([
+      '-ss', String(Math.max(0, startSec)),
+      '-i', inputPath,
+      '-t', String(durationSec),
+      '-map', '0:v:0',
+      '-map', '0:a?',
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-crf', '22',
+      '-c:a', 'aac',
+      '-b:a', '160k',
+      '-movflags', '+faststart',
+      '-y',
+      outputPath
+    ], `Precise cut ${durationSec.toFixed(1)}s`);
+  }
 
-  // Build the video filter chain
-  const filters = [
-    // Scale to fit within target resolution, preserving aspect ratio
+  return outputPath;
+}
+
+function getFaceFocus(videoPath) {
+  return new Promise(resolve => {
+    const pythonScript = path.join(__dirname, '../ai/face_tracker.py');
+    const proc = spawn('python', [pythonScript, videoPath]);
+    let output = '';
+
+    proc.stdout.on('data', data => {
+      output += data.toString();
+    });
+
+    proc.on('close', () => {
+      try {
+        const result = JSON.parse(output.trim());
+        if (!result.success || !result.face_found) {
+          resolve(null);
+          return;
+        }
+
+        const xRatio = typeof result.target_x_ratio === 'number'
+          ? result.target_x_ratio
+          : (result.source_width ? result.target_x / result.source_width : null);
+
+        resolve(xRatio === null ? null : {
+          xRatio: Math.max(0, Math.min(1, xRatio))
+        });
+      } catch (error) {
+        resolve(null);
+      }
+    });
+
+    proc.on('error', () => resolve(null));
+  });
+}
+
+function buildFramingFilters(aspectRatio, cropMode, faceFocus) {
+  const { w, h } = RESOLUTION_MAP[aspectRatio] || RESOLUTION_MAP['9:16'];
+
+  if (cropMode === 'smart_crop' && faceFocus) {
+    const xRatio = Number(faceFocus.xRatio.toFixed(4));
+    return [
+      `scale=-1:${h}`,
+      `crop=${w}:${h}:'max(0,min(iw-${w},${xRatio}*iw-${w}/2))':0`
+    ];
+  }
+
+  if (cropMode === 'smart_crop' || cropMode === 'center_crop') {
+    return [
+      `scale='max(${w},a*${h})':'max(${h},${w}/a)'`,
+      `crop=${w}:${h}:(in_w-${w})/2:(in_h-${h})/2`
+    ];
+  }
+
+  return [
     `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
-    // Pad to exactly target resolution with black bars if needed
-    `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:black`,
-    // Overlay "Part X" label at the top center
-    `drawtext=text='Part ${partNumber}':fontsize=56:fontcolor=white:` +
-    `x=(w-text_w)/2:y=60:borderw=3:bordercolor=black@0.8:` +
-    `box=1:boxcolor=black@0.4:boxborderw=12`
+    `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:black`
   ];
+}
 
-  // If subtitles file exists, burn them in
-  if (srtPath && fs.existsSync(srtPath)) {
-    // Escape path for FFmpeg filter (replace backslashes and colons)
-    const escapedSrt = srtPath.replace(/\\/g, '/').replace(/:/g, '\\:');
-    filters.push(
-      `subtitles='${escapedSrt}':force_style='FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2,Shadow=1,Alignment=2,MarginV=80'`
-    );
+async function processSegment(inputPath, outputPath, partNumber, subtitlePath = null, aspectRatio = '9:16', cropMode = 'smart_crop') {
+  const { w, h } = RESOLUTION_MAP[aspectRatio] || RESOLUTION_MAP['9:16'];
+  const faceFocus = cropMode === 'smart_crop' ? await getFaceFocus(inputPath) : null;
+  const filters = buildFramingFilters(aspectRatio, cropMode, faceFocus);
+
+  filters.push(
+    `drawtext=text='PART ${partNumber}':fontsize=50:fontcolor=white:` +
+    `x=(w-text_w)/2:y=54:borderw=3:bordercolor=black@0.8:` +
+    `box=1:boxcolor=black@0.42:boxborderw=12`
+  );
+
+  if (subtitlePath && fs.existsSync(subtitlePath)) {
+    const escapedPath = subtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:');
+    if (subtitlePath.endsWith('.ass')) {
+      filters.push(`ass='${escapedPath}'`);
+    } else {
+      filters.push(
+        `subtitles='${escapedPath}':force_style='FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2,Shadow=1,Alignment=2,MarginV=80'`
+      );
+    }
   }
 
   await runFFmpeg([
     '-i', inputPath,
     '-vf', filters.join(','),
-    '-c:v', 'libx264',      // H.264 encoding
-    '-preset', 'fast',       // Faster encoding, slightly larger file
-    '-crf', '23',            // Good quality (lower = better, 18–28 range)
-    '-c:a', 'aac',           // AAC audio
-    '-b:a', '128k',
-    '-movflags', '+faststart', // Enable progressive download
-    '-y',                    // Overwrite output if exists
+    '-c:v', 'libx264',
+    '-preset', process.env.FFMPEG_PRESET || 'fast',
+    '-crf', process.env.FFMPEG_CRF || '23',
+    '-c:a', 'aac',
+    '-b:a', '160k',
+    '-movflags', '+faststart',
+    '-y',
     outputPath
-  ], `Process Part ${partNumber} (${w}×${h})`);
+  ], `Render part ${partNumber} (${w}x${h})`);
 }
 
 module.exports = {
+  getFfmpegCommand,
+  getFfprobeCommand,
   runFFmpeg,
   getVideoDuration,
   splitVideo,
-  processSegment
+  cutClip,
+  processSegment,
+  RESOLUTION_MAP
 };

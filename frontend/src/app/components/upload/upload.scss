@@ -3,7 +3,7 @@
 }
 
 .upload-section {
-  max-width: 680px;
+  max-width: 960px;
   margin: 0 auto;
   animation: fadeInUp 0.6s ease-out;
 }
@@ -231,15 +231,17 @@
   height: 6px;
   background: rgba(255, 255, 255, 0.06);
   border-radius: 3px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
   overflow: hidden;
 }
 
 .progress-bar-fill {
   height: 100%;
-  background: var(--gradient-accent);
-  border-radius: 3px;
+  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+  border-radius: 4px;
   transition: width 0.3s ease;
-  position: relative;
 
   &::after {
     content: '';
@@ -295,6 +297,11 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.content-modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .preset-btn {
@@ -436,6 +443,58 @@
 .toggle-hint {
   font-size: 0.82rem;
   color: var(--text-muted);
+}
+
+.toggles-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  cursor: pointer;
+
+  input {
+    display: none;
+  }
+
+  .slider {
+    width: 44px;
+    height: 24px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid var(--border-glass);
+    position: relative;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+
+    &::after {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      top: 2px;
+      left: 3px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: var(--shadow-sm);
+      transition: transform var(--transition-fast);
+    }
+  }
+
+  input:checked + .slider {
+    background: var(--gradient-accent);
+    border-color: transparent;
+
+    &::after {
+      transform: translateX(18px);
+    }
+  }
 }
 
 /* ── Process Button ─────────────────────────────────────── */

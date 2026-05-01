@@ -22,6 +22,10 @@ const fs = require('fs');
  */
 function isWhisperAvailable() {
   return new Promise(resolve => {
+    if (String(process.env.WHISPER_ENABLED || '').toLowerCase() === 'false') {
+      resolve(false);
+      return;
+    }
     const proc = spawn('whisper', ['--help'], { stdio: 'ignore' });
     proc.on('close', code => resolve(code === 0));
     proc.on('error', () => resolve(false));
@@ -36,7 +40,7 @@ function isWhisperAvailable() {
  * @param {string} model      - Whisper model size: tiny, base, small, medium, large
  * @returns {Promise<string|null>} Path to the generated .srt file, or null on failure
  */
-async function generateSubtitles(videoPath, outputDir, model = 'base') {
+async function generateSubtitles(videoPath, outputDir, model = 'large-v3') {
   const baseName = path.basename(videoPath, path.extname(videoPath));
   const expectedSrt = path.join(outputDir, `${baseName}.srt`);
 
