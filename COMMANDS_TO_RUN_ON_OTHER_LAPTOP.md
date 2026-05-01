@@ -203,6 +203,20 @@ cd backend
 npm run dev:queue
 ```
 
+Backend console logs to watch:
+
+```text
+[AI] pipeline started
+[AI] probing source video
+[WHISPER] Transcribing video/audio
+[AI] SmartClipper final clips selected
+[RENDER] final AI edit render
+[RENDER] Final renderer assembled FFmpeg graph
+[RENDER] clip ready
+```
+
+These logs confirm the AI analysis, subtitle generation, clip selection, and FFmpeg editing pipeline are running.
+
 ## 9. Run the frontend
 
 Terminal 3:

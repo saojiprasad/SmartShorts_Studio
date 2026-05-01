@@ -6,6 +6,7 @@ const { scoreClipViral } = require('./viralScorer');
 const { buildSeoPackage } = require('./seoEngine');
 const { normalizeMode } = require('./retentionOptimizer');
 const { getVideoDuration } = require('../utils/ffmpeg');
+const { logAi } = require('../utils/logger');
 
 const MODE_CONFIGS = {
   auto_viral: {
@@ -173,22 +174,32 @@ async function generateSmartClips(inputPath, srtPath, mode = 'auto_viral', onPro
   const normalizedMode = normalizeMode(mode);
   const config = resolveConfig(mode);
 
-  console.log(`  [SmartClipper] Mode: ${normalizedMode}`);
+  logAi('SmartClipper started', { mode: normalizedMode });
   onProgress(5);
 
   const totalDuration = await getVideoDuration(inputPath);
   if (!totalDuration || totalDuration < 3) {
+    logAi('SmartClipper stopped: video too short or duration unavailable', { totalDuration });
     return [];
   }
   onProgress(12);
 
   const scenes = await detectSceneChanges(inputPath, 0.28);
   const highActivity = findHighActivityRegions(scenes, 24, 2);
+  logAi('SmartClipper visual analysis complete', {
+    sceneChanges: scenes.length,
+    highActivityRegions: highActivity.length
+  });
   onProgress(28);
 
   const silences = await detectSilence(inputPath, -30, 0.45);
   const energyPeaks = await detectEnergyPeaks(inputPath, 2, totalDuration);
   const topEnergy = findTopEnergyMoments(energyPeaks, 40);
+  logAi('SmartClipper audio analysis complete', {
+    silences: silences.length,
+    energyPeaks: energyPeaks.length,
+    topEnergyMoments: topEnergy.length
+  });
   onProgress(48);
 
   let transcriptSegments = [];
@@ -201,6 +212,13 @@ async function generateSmartClips(inputPath, srtPath, mode = 'auto_viral', onPro
       bestHook: analysis.bestHookSegment?.text || '',
       emotionMap: analysis.emotionMap
     };
+    logAi('SmartClipper transcript analysis complete', {
+      segments: transcriptSegments.length,
+      bestHook: transcriptSummary.bestHook,
+      overallHookScore: transcriptSummary.overallHookScore
+    });
+  } else {
+    logAi('SmartClipper transcript unavailable, using audio/scene fallback');
   }
   onProgress(60);
 
@@ -217,6 +235,7 @@ async function generateSmartClips(inputPath, srtPath, mode = 'auto_viral', onPro
   if (candidates.length === 0) {
     candidates = generateFallbackCandidates(totalDuration, config);
   }
+  logAi('SmartClipper candidates generated', { candidates: candidates.length });
   onProgress(76);
 
   const scored = candidates.map(candidate => scoreCandidate(
@@ -240,7 +259,17 @@ async function generateSmartClips(inputPath, srtPath, mode = 'auto_viral', onPro
       analysisSummary: transcriptSummary
     }));
 
-  console.log(`  [SmartClipper] Selected ${finalClips.length} clips from ${candidates.length} candidates`);
+  logAi('SmartClipper final clips selected', {
+    selected: finalClips.length,
+    candidates: candidates.length,
+    scores: finalClips.map(clip => ({
+      start: clip.start,
+      end: clip.end,
+      viralScore: clip.viralScore,
+      hookScore: clip.details?.hookScore,
+      retentionScore: clip.details?.retentionScore
+    }))
+  });
   onProgress(100);
   return finalClips;
 }

@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { logWhisper } = require('./logger');
 
 function isWhisperAvailable() {
   return new Promise(resolve => {
@@ -10,8 +11,14 @@ function isWhisperAvailable() {
     }
 
     const proc = spawn('whisper', ['--help'], { stdio: 'ignore' });
-    proc.on('close', code => resolve(code === 0));
-    proc.on('error', () => resolve(false));
+    proc.on('close', code => {
+      logWhisper('Availability check complete', { available: code === 0 });
+      resolve(code === 0);
+    });
+    proc.on('error', () => {
+      logWhisper('Availability check failed', { available: false });
+      resolve(false);
+    });
   });
 }
 
@@ -27,7 +34,7 @@ async function generateSubtitles(videoPath, outputDir, model = 'large-v3') {
 
 function runWhisper(videoPath, outputDir, expectedSrt, model) {
   return new Promise(resolve => {
-    console.log(`  [Whisper] Transcribing: ${path.basename(videoPath)} (model: ${model})`);
+    logWhisper('Transcribing video/audio', { file: path.basename(videoPath), model });
 
     const proc = spawn('whisper', [
       videoPath,
@@ -38,16 +45,16 @@ function runWhisper(videoPath, outputDir, expectedSrt, model) {
 
     proc.on('close', code => {
       if (code === 0 && fs.existsSync(expectedSrt)) {
-        console.log(`  [Whisper] Generated: ${path.basename(expectedSrt)}`);
+        logWhisper('Subtitle file generated', { srt: path.basename(expectedSrt), model });
         resolve(expectedSrt);
       } else {
-        console.warn(`  [Whisper] Failed with model ${model} (code ${code}).`);
+        console.warn(`[WHISPER] Failed with model ${model} (code ${code}).`);
         resolve(null);
       }
     });
 
     proc.on('error', err => {
-      console.warn(`  [Whisper] Not available: ${err.message}.`);
+      console.warn(`[WHISPER] Not available: ${err.message}.`);
       resolve(null);
     });
   });

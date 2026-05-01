@@ -13,6 +13,7 @@ const { renderFinalClip } = require('../effects/finalRenderer');
 const { generateThumbnailPack } = require('../effects/thumbnailGenerator');
 const { updateJob } = require('./jobStore');
 const { transcribeWithPythonAi } = require('./pythonAiClient');
+const { logAi, logRender } = require('../utils/logger');
 
 const OUTPUT_DIR = path.resolve(process.env.OUTPUT_DIR || './outputs');
 
@@ -76,9 +77,17 @@ const PIPELINE_STEPS = [
     description: 'Analyzing source video, audio, and format',
     execute: async (ctx, progress) => {
       progress(15);
+      logAi(`Job ${ctx.jobId}: probing source video`);
       const metadata = await getVideoMetadata(ctx.originalFile);
       progress(60);
       const totalDuration = await getVideoDuration(ctx.originalFile);
+      logAi(`Job ${ctx.jobId}: source analysis complete`, {
+        durationSeconds: Number(totalDuration.toFixed(2)),
+        width: metadata.width,
+        height: metadata.height,
+        fps: metadata.fps,
+        audioChannels: metadata.audioChannels
+      });
       const analysis = {
         metadata,
         totalDuration,
@@ -102,19 +111,27 @@ const PIPELINE_STEPS = [
 
       progress(10);
       const model = process.env.WHISPER_MODEL || 'large-v3';
+      logAi(`Job ${ctx.jobId}: trying Python AI transcription`, { model });
       const pythonSrt = await transcribeWithPythonAi(ctx.originalFile, ctx.segmentsDir, model);
       if (pythonSrt) {
+        logAi(`Job ${ctx.jobId}: Python AI transcript ready`, { srt: path.basename(pythonSrt) });
         progress(100);
         return { fullSrt: pythonSrt, whisperAvailable: true };
       }
 
       const whisperAvailable = await isWhisperAvailable();
       if (!whisperAvailable) {
+        logAi(`Job ${ctx.jobId}: Whisper unavailable, fallback captions will be used`);
         progress(100);
         return { fullSrt: null, whisperAvailable: false };
       }
 
+      logAi(`Job ${ctx.jobId}: running local Whisper`, { model });
       const fullSrt = await generateSubtitles(ctx.originalFile, ctx.segmentsDir, model);
+      logAi(`Job ${ctx.jobId}: local Whisper finished`, {
+        transcript: fullSrt ? path.basename(fullSrt) : 'not_created',
+        fallbackCaptions: !fullSrt
+      });
       progress(100);
       return { fullSrt, whisperAvailable };
     }
@@ -125,6 +142,7 @@ const PIPELINE_STEPS = [
     execute: async (ctx, progress) => {
       let clipsToProcess = [];
       const mode = normalizeMode(ctx.options.mode || 'auto_viral');
+      logAi(`Job ${ctx.jobId}: detecting viral moments`, { mode });
 
       if (ctx.options.clippingMode === 'smart') {
         const smartClips = await generateSmartClips(
@@ -137,6 +155,13 @@ const PIPELINE_STEPS = [
         for (let i = 0; i < smartClips.length; i++) {
           const clip = smartClips[i];
           const segmentPath = path.join(ctx.segmentsDir, `segment_${String(i).padStart(3, '0')}.mp4`);
+          logAi(`Job ${ctx.jobId}: cutting clip candidate ${i + 1}/${smartClips.length}`, {
+            start: clip.start,
+            end: clip.end,
+            duration: clip.duration,
+            viralScore: clip.viralScore,
+            reason: clip.reason
+          });
           await cutClip(ctx.originalFile, segmentPath, clip.start, clip.duration);
           clipsToProcess.push({ index: i, path: segmentPath, ...clip });
           progress(80 + ((i + 1) / Math.max(1, smartClips.length)) * 18);
@@ -147,6 +172,15 @@ const PIPELINE_STEPS = [
       }
 
       clipsToProcess = dedupeClipsForRender(clipsToProcess, 20);
+      logAi(`Job ${ctx.jobId}: unique clips selected`, {
+        count: clipsToProcess.length,
+        clips: clipsToProcess.map(clip => ({
+          start: clip.start,
+          end: clip.end,
+          score: clip.viralScore,
+          reason: clip.reason
+        }))
+      });
 
       updateJob(ctx.jobId, {
         totalClips: clipsToProcess.length,
@@ -196,6 +230,7 @@ const PIPELINE_STEPS = [
         let subtitlePath = path.join(ctx.segmentsDir, `${partPrefix}_forced.ass`);
         if (ctx.whisperAvailable) {
           const clipModel = process.env.WHISPER_CLIP_MODEL || process.env.WHISPER_MODEL || 'large-v3';
+          logAi(`Job ${ctx.jobId}: creating fancy subtitles for clip ${partNumber}/${total}`, { model: clipModel });
           const segSrt = await generateSubtitles(clip.path, ctx.segmentsDir, clipModel);
           if (segSrt) {
             subtitlePath = generateStyledSubtitles(segSrt, subtitlePath, ctx.options.subtitleStyle || 'hormozi') || subtitlePath;
@@ -203,6 +238,7 @@ const PIPELINE_STEPS = [
         }
 
         if (!subtitlePath || !fs.existsSync(subtitlePath)) {
+          logAi(`Job ${ctx.jobId}: using fallback fancy captions for clip ${partNumber}/${total}`);
           subtitlePath = generateFallbackSubtitles(
             path.join(ctx.segmentsDir, `${partPrefix}_fallback.ass`),
             enrichedClip,
@@ -211,6 +247,13 @@ const PIPELINE_STEPS = [
         }
 
         try {
+          logRender(`Job ${ctx.jobId}: final AI edit render ${partNumber}/${total}`, {
+            output: finalOutputName,
+            subtitles: path.basename(subtitlePath),
+            mood: editPlan.mood,
+            attentionResets: editPlan.pacing?.attentionResetCount || 0,
+            viralScore: enrichedClip.viralScore
+          });
           await renderFinalClip({
             inputPath: clip.path,
             outputPath: finalPath,
@@ -251,6 +294,11 @@ const PIPELINE_STEPS = [
         }
 
         const stats = fs.statSync(finalPath);
+        logRender(`Job ${ctx.jobId}: clip ready`, {
+          file: finalOutputName,
+          sizeMB: (stats.size / (1024 * 1024)).toFixed(2),
+          title: seo.title
+        });
         const scores = scoreClipViral(enrichedClip);
         const tips = generateTips(scores);
         const outputClip = {
@@ -315,6 +363,14 @@ async function processVideo(job) {
   const jobOutputDir = path.join(OUTPUT_DIR, jobId);
   const segmentsDir = path.join(jobOutputDir, 'segments');
   fs.mkdirSync(segmentsDir, { recursive: true });
+  logAi(`Job ${jobId}: pipeline started`, {
+    file: path.basename(originalFile),
+    mode: options.mode,
+    clippingMode: options.clippingMode,
+    aspectRatio: options.aspectRatio,
+    subtitles: 'forced_on',
+    audio: options.enableAudio !== false
+  });
 
   const context = {
     jobId,

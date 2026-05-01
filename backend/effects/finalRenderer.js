@@ -6,6 +6,7 @@ const { buildTransitionFilters } = require('./transitionEngine');
 const { buildSubtitleBurnFilter } = require('./subtitleEngine');
 const { buildSfxTracks } = require('./sfxEngine');
 const { selectMusicPath } = require('./musicEngine');
+const { logRender } = require('../utils/logger');
 
 function buildVideoFilters({ subtitlePath, aspectRatio, cropMode, faceFocus, clip, partNumber }) {
   const { h } = RESOLUTION_MAP[aspectRatio] || RESOLUTION_MAP['9:16'];
@@ -79,6 +80,18 @@ async function renderFinalClip({
     buildVideoFilters({ subtitlePath, aspectRatio, cropMode, faceFocus, clip, partNumber }),
     buildAudioFilters({ hasAudio, hasMusic, clip, musicVolume })
   ].join(';');
+  const sfxCount = buildSfxTracks(clip).length;
+  logRender('Final renderer assembled FFmpeg graph', {
+    input: inputPath,
+    output: outputPath,
+    aspectRatio,
+    cropMode,
+    faceTracking: Boolean(faceFocus),
+    subtitles: Boolean(subtitlePath && fs.existsSync(subtitlePath)),
+    music: hasMusic ? selectedMusic : 'missing_or_disabled',
+    sfxCount,
+    hasSourceAudio: hasAudio
+  });
 
   const args = ['-y', '-i', inputPath];
   if (hasMusic) {
