@@ -18,6 +18,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const { createJob, getJob, updateJob, getAllJobs } = require('../services/jobStore');
 const { processVideo } = require('../services/videoProcessor');
+const { enqueueVideoJob } = require('../services/queueManager');
 
 const router = express.Router();
 
@@ -93,8 +94,8 @@ router.post('/upload', upload.single('video'), (req, res) => {
 
 // ── POST /api/process ─────────────────────────────────────────────────
 // Start processing an uploaded video.
-// Body: { jobId, clipDuration?: number, addSubtitles?: boolean }
-router.post('/process', (req, res) => {
+// Body: { jobId, clipDuration?: number, mode?: string, aspectRatio?: string }
+router.post('/process', async (req, res) => {
   const {
     jobId,
     clipDuration,
@@ -126,7 +127,7 @@ router.post('/process', (req, res) => {
   updateJob(jobId, {
     options: {
       clipDuration: clipDuration || parseInt(process.env.DEFAULT_CLIP_DURATION) || 90,
-      addSubtitles: addSubtitles || false,
+      addSubtitles: true,
       aspectRatio: aspectRatio || '9:16',
       cropMode: cropMode || 'smart_crop',
       enableBroll: enableBroll || false,
@@ -138,11 +139,20 @@ router.post('/process', (req, res) => {
     }
   });
 
-  // Fire-and-forget async processing
   const updatedJob = getJob(jobId);
-  processVideo(updatedJob).catch(error => {
-    console.error(`Processing failed for job ${jobId}:`, error);
-  });
+  try {
+    const queued = await enqueueVideoJob(jobId);
+    if (!queued) {
+      processVideo(updatedJob).catch(error => {
+        console.error(`Processing failed for job ${jobId}:`, error);
+      });
+    }
+  } catch (error) {
+    console.warn(`[Queue] Enqueue failed, processing directly. ${error.message}`);
+    processVideo(updatedJob).catch(processError => {
+      console.error(`Processing failed for job ${jobId}:`, processError);
+    });
+  }
 
   res.json({
     jobId,

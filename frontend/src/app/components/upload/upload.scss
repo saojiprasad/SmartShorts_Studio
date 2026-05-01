@@ -497,6 +497,25 @@
   }
 }
 
+.locked-feature {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(16, 185, 129, 0.11);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  color: var(--text-primary);
+  font-size: 0.86rem;
+  font-weight: 600;
+
+  .material-icons-round {
+    color: var(--success);
+    font-size: 18px;
+  }
+}
+
 /* ── Process Button ─────────────────────────────────────── */
 .btn-process {
   display: flex;

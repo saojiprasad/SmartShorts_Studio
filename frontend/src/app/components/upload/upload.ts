@@ -172,7 +172,7 @@ export class Upload {
   setAspectRatio(val: string) { this.aspectRatio.set(val); }
   setCropMode(val: string) { this.cropMode.set(val); }
   setSubtitleStyle(val: string) { this.subtitleStyle.set(val); }
-  toggleSubtitles() { this.addSubtitles.set(!this.addSubtitles()); }
+  toggleSubtitles() { this.addSubtitles.set(true); }
   toggleBroll() { this.enableBroll.set(!this.enableBroll()); }
   toggleAudio() { this.enableAudio.set(!this.enableAudio()); }
 
@@ -216,7 +216,7 @@ export class Upload {
       clipDuration: this.clipDuration(),
       aspectRatio: this.aspectRatio(),
       cropMode: this.cropMode(),
-      addSubtitles: this.addSubtitles(),
+      addSubtitles: true,
       enableBroll: this.enableBroll(),
       enableAudio: this.enableAudio(),
       musicVolume: this.musicVolume(),

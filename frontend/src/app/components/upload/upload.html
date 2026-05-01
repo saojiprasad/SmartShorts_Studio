@@ -162,11 +162,10 @@
         <div class="option-group">
           <h3>Enhancements</h3>
           <div class="toggles-row" style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
-            <label class="toggle-switch">
-              <input type="checkbox" [checked]="addSubtitles()" (change)="toggleSubtitles()">
-              <span class="slider"></span>
-              <span class="toggle-label">Enable Viral Subtitles</span>
-            </label>
+            <div class="locked-feature">
+              <span class="material-icons-round">subtitles</span>
+              <span>Viral Captions Always On</span>
+            </div>
             <label class="toggle-switch">
               <input type="checkbox" [checked]="enableBroll()" (change)="toggleBroll()">
               <span class="slider"></span>

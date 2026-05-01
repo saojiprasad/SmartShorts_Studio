@@ -6,6 +6,7 @@ const fs = require('fs');
 
 const apiRoutes = require('./routes/api');
 const sseRoutes = require('./routes/sse');
+const { startQueueWorker, isQueueEnabled } = require('./services/queueManager');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -58,6 +59,10 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
+  if (isQueueEnabled()) {
+    startQueueWorker();
+  }
+
   console.log('\nSmartShorts Studio - Backend');
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Uploads dir: ${UPLOAD_DIR}`);

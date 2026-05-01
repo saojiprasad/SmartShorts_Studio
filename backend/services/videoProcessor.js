@@ -8,30 +8,13 @@ const { generateSmartClips } = require('../ai/smartClipper');
 const { buildSeoPackage } = require('../ai/seoEngine');
 const { createEditPlan, normalizeMode } = require('../ai/retentionOptimizer');
 const { scoreClipViral, generateTips } = require('../ai/viralScorer');
-const { generateStyledSubtitles } = require('../effects/subtitleStyler');
-const { applyProgressOverlay } = require('../effects/overlays');
-const { applyAudioMix } = require('../effects/audioMixer');
-const { applyCreatorPolish } = require('../effects/autoEditor');
-const { addBRoll } = require('../effects/effectsEngine');
+const { generateStyledSubtitles, generateFallbackSubtitles } = require('../effects/subtitleStyler');
+const { renderFinalClip } = require('../effects/finalRenderer');
 const { generateThumbnailPack } = require('../effects/thumbnailGenerator');
 const { updateJob } = require('./jobStore');
+const { transcribeWithPythonAi } = require('./pythonAiClient');
 
 const OUTPUT_DIR = path.resolve(process.env.OUTPUT_DIR || './outputs');
-
-function removeIfExists(filePath) {
-  try {
-    if (filePath && fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  } catch (error) {
-    console.warn(`[Cleanup] Could not remove ${filePath}: ${error.message}`);
-  }
-}
-
-function getLocalBrollFile() {
-  const brollDir = path.resolve(__dirname, '../broll');
-  if (!fs.existsSync(brollDir)) return null;
-  const files = fs.readdirSync(brollDir).filter(file => file.toLowerCase().endsWith('.mp4')).sort();
-  return files.length ? path.join(brollDir, files[0]) : null;
-}
 
 function buildFixedClip(file, index, options) {
   const duration = Number(options.clipDuration) || 45;
@@ -68,6 +51,25 @@ function buildFixedClip(file, index, options) {
   };
 }
 
+function dedupeClipsForRender(clips, maxClips = 20) {
+  const selected = [];
+  const sorted = [...clips].sort((a, b) => (b.viralScore || 0) - (a.viralScore || 0));
+
+  for (const clip of sorted) {
+    const duplicate = selected.some(existing => {
+      const overlap = Math.max(0, Math.min(existing.end, clip.end) - Math.max(existing.start, clip.start));
+      const smallerDuration = Math.max(1, Math.min(existing.duration, clip.duration));
+      const centerDistance = Math.abs(((existing.start + existing.end) / 2) - ((clip.start + clip.end) / 2));
+      return overlap / smallerDuration > 0.12 || centerDistance < 15;
+    });
+
+    if (!duplicate) selected.push(clip);
+    if (selected.length >= maxClips) break;
+  }
+
+  return selected.sort((a, b) => a.start - b.start);
+}
+
 const PIPELINE_STEPS = [
   {
     name: 'analyze',
@@ -92,23 +94,29 @@ const PIPELINE_STEPS = [
     name: 'transcribe_full',
     description: 'Creating transcript for hook and subtitle analysis',
     execute: async (ctx, progress) => {
-      const needsTranscript = ctx.options.clippingMode === 'smart' || ctx.options.addSubtitles;
+      const needsTranscript = true;
       if (!needsTranscript) {
         progress(100);
         return { fullSrt: null, whisperAvailable: false };
       }
 
       progress(10);
+      const model = process.env.WHISPER_MODEL || 'large-v3';
+      const pythonSrt = await transcribeWithPythonAi(ctx.originalFile, ctx.segmentsDir, model);
+      if (pythonSrt) {
+        progress(100);
+        return { fullSrt: pythonSrt, whisperAvailable: true };
+      }
+
       const whisperAvailable = await isWhisperAvailable();
       if (!whisperAvailable) {
         progress(100);
         return { fullSrt: null, whisperAvailable: false };
       }
 
-      const model = process.env.WHISPER_MODEL || 'large-v3';
       const fullSrt = await generateSubtitles(ctx.originalFile, ctx.segmentsDir, model);
       progress(100);
-      return { fullSrt, whisperAvailable: Boolean(fullSrt) };
+      return { fullSrt, whisperAvailable };
     }
   },
   {
@@ -137,6 +145,8 @@ const PIPELINE_STEPS = [
         const segmentFiles = await splitVideo(ctx.originalFile, ctx.segmentsDir, ctx.options.clipDuration);
         clipsToProcess = segmentFiles.map((file, index) => buildFixedClip(file, index, ctx.options));
       }
+
+      clipsToProcess = dedupeClipsForRender(clipsToProcess, 20);
 
       updateJob(ctx.jobId, {
         totalClips: clipsToProcess.length,
@@ -176,10 +186,6 @@ const PIPELINE_STEPS = [
         const clip = ctx.clipsToProcess[i];
         const partNumber = i + 1;
         const partPrefix = `Part_${String(partNumber).padStart(2, '0')}`;
-        const basePath = path.join(ctx.jobOutputDir, `${partPrefix}_base.mp4`);
-        const editPath = path.join(ctx.jobOutputDir, `${partPrefix}_edit.mp4`);
-        const brollPath = path.join(ctx.jobOutputDir, `${partPrefix}_broll.mp4`);
-        const overlayPath = path.join(ctx.jobOutputDir, `${partPrefix}_overlay.mp4`);
         const finalPath = path.join(ctx.jobOutputDir, `${partPrefix}.mp4`);
         const finalOutputName = `${partPrefix}.mp4`;
 
@@ -187,62 +193,52 @@ const PIPELINE_STEPS = [
         const seo = clip.seo || buildSeoPackage(clip, mode);
         const enrichedClip = { ...clip, editPlan, seo, title: seo.title, description: seo.description, hashtags: seo.hashtags };
 
-        let subtitlePath = null;
-        if (ctx.options.addSubtitles && ctx.whisperAvailable) {
+        let subtitlePath = path.join(ctx.segmentsDir, `${partPrefix}_forced.ass`);
+        if (ctx.whisperAvailable) {
           const clipModel = process.env.WHISPER_CLIP_MODEL || process.env.WHISPER_MODEL || 'large-v3';
           const segSrt = await generateSubtitles(clip.path, ctx.segmentsDir, clipModel);
           if (segSrt) {
-            const assPath = segSrt.replace(/\.srt$/i, '.ass');
-            subtitlePath = generateStyledSubtitles(segSrt, assPath, ctx.options.subtitleStyle || 'hormozi') || segSrt;
+            subtitlePath = generateStyledSubtitles(segSrt, subtitlePath, ctx.options.subtitleStyle || 'hormozi') || subtitlePath;
           }
         }
 
-        await processSegment(
-          clip.path,
-          basePath,
-          partNumber,
-          subtitlePath,
-          ctx.options.aspectRatio,
-          ctx.options.cropMode
-        );
-
-        let currentLayerPath = basePath;
-        try {
-          await applyCreatorPolish(currentLayerPath, editPath, ctx.options, enrichedClip);
-          currentLayerPath = editPath;
-        } catch (error) {
-          console.warn(`[AutoEdit] Visual polish skipped for part ${partNumber}: ${error.message}`);
-        }
-
-        if (ctx.options.enableBroll) {
-          const brollFile = getLocalBrollFile();
-          if (brollFile) {
-            try {
-              await addBRoll(currentLayerPath, brollFile, brollPath);
-              currentLayerPath = brollPath;
-            } catch (error) {
-              console.warn(`[Broll] B-roll skipped for part ${partNumber}: ${error.message}`);
-            }
-          }
+        if (!subtitlePath || !fs.existsSync(subtitlePath)) {
+          subtitlePath = generateFallbackSubtitles(
+            path.join(ctx.segmentsDir, `${partPrefix}_fallback.ass`),
+            enrichedClip,
+            ctx.options.subtitleStyle || 'hormozi'
+          );
         }
 
         try {
-          await applyProgressOverlay(currentLayerPath, overlayPath, clip.duration);
-          currentLayerPath = overlayPath;
+          await renderFinalClip({
+            inputPath: clip.path,
+            outputPath: finalPath,
+            subtitlePath,
+            partNumber,
+            clip: enrichedClip,
+            options: {
+              ...ctx.options,
+              addSubtitles: true,
+              enableEffects: true
+            },
+            metadata: ctx.metadata
+          });
         } catch (error) {
-          console.warn(`[Overlay] Progress overlay skipped for part ${partNumber}: ${error.message}`);
-        }
-
-        const musicPath = path.resolve(__dirname, '../assets/lofi_beat.mp3');
-        if (ctx.options.enableAudio !== false && fs.existsSync(musicPath)) {
+          console.warn(`[FinalRender] Full edit render failed for part ${partNumber}; rendering safe captioned fallback. ${error.message}`);
           try {
-            await applyAudioMix(currentLayerPath, finalPath, musicPath, ctx.options.musicVolume || 0.14);
-          } catch (error) {
-            console.warn(`[Audio] Mix skipped for part ${partNumber}: ${error.message}`);
-            fs.copyFileSync(currentLayerPath, finalPath);
+            await processSegment(
+              clip.path,
+              finalPath,
+              partNumber,
+              subtitlePath,
+              ctx.options.aspectRatio,
+              ctx.options.cropMode
+            );
+          } catch (fallbackError) {
+            console.warn(`[FinalRender] Captioned fallback failed for part ${partNumber}; copying source segment. ${fallbackError.message}`);
+            fs.copyFileSync(clip.path, finalPath);
           }
-        } else {
-          fs.copyFileSync(currentLayerPath, finalPath);
         }
 
         const publicBasePath = `/outputs/${ctx.jobId}`;
@@ -253,10 +249,6 @@ const PIPELINE_STEPS = [
         } catch (error) {
           console.warn(`[Thumbnail] Thumbnail generation skipped for part ${partNumber}: ${error.message}`);
         }
-
-        [basePath, editPath, brollPath, overlayPath].forEach(file => {
-          if (file !== finalPath) removeIfExists(file);
-        });
 
         const stats = fs.statSync(finalPath);
         const scores = scoreClipViral(enrichedClip);

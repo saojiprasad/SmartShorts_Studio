@@ -19,7 +19,7 @@ SmartShorts Studio turns a long video into multiple ready-to-upload short clips.
 - A rendered MP4 short.
 - Viral score and grade.
 - Hook, retention, engagement, and replay scores.
-- Animated creator-style captions.
+- Always-on burned-in ASS captions, with fallback captions if Whisper fails.
 - Face-aware vertical framing.
 - Dynamic visual polish and attention resets.
 - Progress bar overlay.
@@ -162,6 +162,8 @@ It first tries fast stream-copy cutting. If that fails, it retries with precise 
 
 For each clip, the backend can generate subtitles and convert them to styled ASS captions.
 
+Captions are forced on for exported videos. The backend attempts Whisper whenever the `whisper` command is available. If Whisper fails or returns no subtitle file, the system creates a fallback ASS caption track from the clip hook/title/reason so the final render still has visible burned-in captions.
+
 Supported caption presets include:
 
 - Default
@@ -180,6 +182,8 @@ The subtitle styler adds:
 - Emphasis words.
 - Larger important words.
 - Pop/scale animation.
+- High-contrast mobile-safe font sizes.
+- Thick black outlines and shadow.
 - Uppercase hook styles for some presets.
 
 ### 7. Frame And Render
@@ -199,15 +203,19 @@ Crop modes:
 
 The rendered video also gets a `PART X` label.
 
-### 8. Apply AI Editing Polish
+### 8. Apply AI Editing During Final Render
 
-The auto editor applies creator-style visual polish:
+The final renderer applies creator-style visual polish inside the final FFmpeg command:
 
 - Subtle punch zoom / movement.
 - Contrast and saturation tuning.
 - Sharpening.
 - Mood-based color grade.
 - Light attention-reset flashes.
+- Bottom progress bar.
+- Burned ASS captions.
+- Generated boom/click/whoosh sound effects.
+- Background music ducking when music is available.
 - Output-safe `yuv420p` formatting.
 
 The exact mood depends on the selected creator mode.

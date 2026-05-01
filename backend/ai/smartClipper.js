@@ -284,18 +284,37 @@ function generateCandidates(totalDuration, config, scenes, silences, topEnergy, 
       const duration = end - start;
       if (duration < config.minClipDuration || duration > config.maxClipDuration) continue;
 
-      const key = `${Math.round(start * 10)}:${Math.round(end * 10)}`;
+      const tightened = tightenDeadSpace({ start, end, duration }, silences, totalDuration, config);
+      const key = `${Math.round(tightened.start * 10)}:${Math.round(tightened.end * 10)}`;
       if (seen.has(key)) continue;
       seen.add(key);
       candidates.push({
-        start: roundTime(start),
-        end: roundTime(end),
-        duration: roundTime(duration)
+        start: roundTime(tightened.start),
+        end: roundTime(tightened.end),
+        duration: roundTime(tightened.end - tightened.start)
       });
     }
   }
 
   return candidates.slice(0, 900);
+}
+
+function tightenDeadSpace(candidate, silences, totalDuration, config) {
+  let start = candidate.start;
+  let end = candidate.end;
+
+  for (const silence of silences) {
+    if (silence.start <= start + 0.25 && silence.end > start && silence.end - start <= 2.8) {
+      start = Math.min(silence.end, end - config.minClipDuration);
+    }
+    if (silence.end >= end - 0.25 && silence.start < end && end - silence.start <= 2.8) {
+      end = Math.max(silence.start, start + config.minClipDuration);
+    }
+  }
+
+  start = Math.max(0, Math.min(start, totalDuration));
+  end = Math.max(start + config.minClipDuration, Math.min(end, totalDuration));
+  return { start, end };
 }
 
 function buildNaturalBreaks(totalDuration, scenes, silences, transcriptSegments) {
@@ -472,14 +491,22 @@ function removeOverlaps(sortedByScore, maxClips) {
 
   for (const clip of sortedByScore) {
     if (selected.length >= maxClips) break;
-    const overlaps = selected.some(existing => {
+    const isDuplicate = selected.some(existing => {
       const overlapStart = Math.max(existing.start, clip.start);
       const overlapEnd = Math.min(existing.end, clip.end);
       const overlap = Math.max(0, overlapEnd - overlapStart);
-      return overlap / Math.min(existing.duration, clip.duration) > 0.35;
+      const smallerDuration = Math.min(existing.duration, clip.duration);
+      const largerDuration = Math.max(existing.duration, clip.duration);
+      const overlapRatio = overlap / Math.max(1, smallerDuration);
+      const centerDistance = Math.abs(((existing.start + existing.end) / 2) - ((clip.start + clip.end) / 2));
+      const startDistance = Math.abs(existing.start - clip.start);
+      const endDistance = Math.abs(existing.end - clip.end);
+      const sameWindow = startDistance < 8 && endDistance < 8;
+      const sameStoryBeat = centerDistance < Math.min(18, largerDuration * 0.35);
+      return overlapRatio > 0.18 || sameWindow || sameStoryBeat;
     });
 
-    if (!overlaps) selected.push(clip);
+    if (!isDuplicate) selected.push(clip);
   }
 
   return selected;

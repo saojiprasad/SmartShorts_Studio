@@ -230,6 +230,8 @@ async function processSegment(inputPath, outputPath, partNumber, subtitlePath = 
 module.exports = {
   getFfmpegCommand,
   getFfprobeCommand,
+  getFaceFocus,
+  buildFramingFilters,
   runFFmpeg,
   getVideoDuration,
   splitVideo,
