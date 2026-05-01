@@ -1,0 +1,150 @@
+<section class="upload-section" id="upload-section">
+  <!-- Drop Zone -->
+  <div
+    class="drop-zone glass"
+    [class.drag-over]="isDragOver()"
+    [class.has-file]="selectedFile()"
+    (dragover)="onDragOver($event)"
+    (dragleave)="onDragLeave($event)"
+    (drop)="onDrop($event)"
+    id="drop-zone"
+  >
+    @if (!selectedFile()) {
+      <div class="drop-content" (click)="fileInput.click()">
+        <div class="drop-icon">
+          <span class="material-icons-round">cloud_upload</span>
+        </div>
+        <h2>Drop your video here</h2>
+        <p>or <span class="browse-link">browse files</span></p>
+        <p class="file-hint">All video formats supported (MP4, MKV, AVI, MOV, WebM...)</p>
+      </div>
+    } @else {
+      <div class="file-preview">
+        <div class="file-icon">
+          <span class="material-icons-round">movie</span>
+        </div>
+        <div class="file-info">
+          <p class="file-name">{{ selectedFile()!.name }}</p>
+          <p class="file-size">{{ formatFileSize(selectedFile()!.size) }}</p>
+        </div>
+        @if (!isUploading() && !uploadComplete()) {
+          <button class="btn-remove" (click)="removeFile()" id="btn-remove-file">
+            <span class="material-icons-round">close</span>
+          </button>
+        }
+        @if (uploadComplete()) {
+          <div class="upload-success">
+            <span class="material-icons-round">check_circle</span>
+          </div>
+        }
+      </div>
+    }
+
+    <input
+      #fileInput
+      type="file"
+      accept="video/*,.mkv,.avi,.mov,.wmv,.flv,.webm,.mpeg,.mpg,.3gp,.m4v,.ts,.mts,.vob,.ogv"
+      (change)="onFileSelected($event)"
+      hidden
+      id="file-input"
+    />
+  </div>
+
+  <!-- Error Message -->
+  @if (errorMessage()) {
+    <div class="error-message" id="error-message">
+      <span class="material-icons-round">error_outline</span>
+      <span>{{ errorMessage() }}</span>
+    </div>
+  }
+
+  <!-- Upload Progress -->
+  @if (isUploading()) {
+    <div class="progress-section" id="upload-progress">
+      <div class="progress-header">
+        <span class="progress-label">Uploading...</span>
+        <span class="progress-value">{{ uploadProgress() }}%</span>
+      </div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" [style.width.%]="uploadProgress()"></div>
+      </div>
+    </div>
+  }
+
+  <!-- Options Panel (shown when file is selected, before upload) -->
+  @if (selectedFile() && !isUploading() && !uploadComplete()) {
+    <div class="options-panel glass" id="options-panel">
+      <h3>
+        <span class="material-icons-round">tune</span>
+        Processing Options
+      </h3>
+
+      <div class="option-group">
+        <label class="option-label">Clip Duration</label>
+        <div class="duration-presets">
+          @for (preset of durationPresets; track preset.value) {
+            <button
+              class="preset-btn"
+              [class.active]="clipDuration() === preset.value"
+              (click)="setDuration(preset.value)"
+            >
+              {{ preset.label }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="option-group">
+        <label class="option-label">Aspect Ratio</label>
+        <div class="aspect-presets">
+          @for (preset of aspectPresets; track preset.value) {
+            <button
+              class="aspect-btn"
+              [class.active]="aspectRatio() === preset.value"
+              (click)="setAspectRatio(preset.value)"
+              id="btn-aspect-{{ preset.value }}"
+            >
+              <span class="material-icons-round">{{ preset.icon }}</span>
+              <div class="aspect-info">
+                <span class="aspect-label">{{ preset.label }}</span>
+                <span class="aspect-desc">{{ preset.desc }}</span>
+              </div>
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="option-group">
+        <label class="option-label">Add Subtitles</label>
+        <div class="toggle-row">
+          <button
+            class="toggle-btn"
+            [class.active]="addSubtitles()"
+            (click)="toggleSubtitles()"
+            id="btn-toggle-subtitles"
+          >
+            <div class="toggle-track">
+              <div class="toggle-thumb"></div>
+            </div>
+          </button>
+          <span class="toggle-hint">
+            {{ addSubtitles() ? 'Whisper will generate subtitles' : 'No subtitles' }}
+          </span>
+        </div>
+      </div>
+
+      <button class="btn-process" (click)="startUpload()" id="btn-start-upload">
+        <span class="material-icons-round">rocket_launch</span>
+        Upload & Process
+      </button>
+    </div>
+  }
+
+  <!-- Processing started indicator -->
+  @if (isProcessing()) {
+    <div class="processing-indicator" id="processing-indicator">
+      <div class="spinner"></div>
+      <span>Starting processing pipeline...</span>
+    </div>
+  }
+</section>

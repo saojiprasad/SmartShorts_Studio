@@ -1,0 +1,109 @@
+<section class="clips-section" id="clips-section">
+  @if (status(); as s) {
+    <!-- Status Banner -->
+    <div class="status-banner glass" [class]="'status-' + s.status" id="status-banner">
+      <div class="status-left">
+        <span class="material-icons-round status-icon" [class.spinning]="s.status === 'processing'">
+          {{ getStatusIcon() }}
+        </span>
+        <div class="status-info">
+          <h3>{{ getStatusLabel() }}</h3>
+          <p>
+            @if (s.status === 'processing') {
+              Processing clip {{ s.processedClips }} of {{ s.totalClips || '...' }}
+            } @else if (s.status === 'completed') {
+              {{ s.totalClips }} clip{{ s.totalClips !== 1 ? 's' : '' }} ready to download
+            } @else if (s.status === 'failed') {
+              {{ s.error || 'An error occurred during processing' }}
+            }
+          </p>
+        </div>
+      </div>
+
+      @if (s.status === 'processing') {
+        <div class="status-progress">
+          <span class="progress-text">{{ s.progress }}%</span>
+        </div>
+      }
+    </div>
+
+    <!-- Processing Progress Bar -->
+    @if (s.status === 'processing') {
+      <div class="processing-progress" id="processing-progress">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" [style.width.%]="s.progress"></div>
+        </div>
+      </div>
+    }
+
+    <!-- Download All Button -->
+    @if (s.status === 'completed' && s.clips.length > 1) {
+      <div class="actions-bar">
+        <button class="btn-download-all" (click)="downloadAll()" id="btn-download-all">
+          <span class="material-icons-round">download</span>
+          Download All ({{ s.clips.length }} clips)
+        </button>
+      </div>
+    }
+
+    <!-- Clips Grid -->
+    @if (s.clips.length > 0) {
+      <div class="clips-grid" id="clips-grid">
+        @for (clip of s.clips; track clip.name; let i = $index) {
+          <div class="clip-card glass" [style.animation-delay]="(i * 0.08) + 's'" id="clip-card-{{ clip.partNumber }}">
+            <!-- Video Preview -->
+            <div class="clip-preview">
+              <video
+                [src]="getStreamUrl(clip)"
+                preload="metadata"
+                controls
+                playsinline
+                class="clip-video"
+              ></video>
+              <div class="clip-badge">
+                <span class="material-icons-round">timer</span>
+                {{ formatDuration(clip.duration) }}
+              </div>
+            </div>
+
+            <!-- Clip Info -->
+            <div class="clip-body">
+              <div class="clip-header">
+                <h4 class="clip-title">Part {{ clip.partNumber }}</h4>
+                <span class="clip-size">{{ clip.size }}</span>
+              </div>
+
+              <div class="clip-meta">
+                <span class="clip-format">
+                  <span class="material-icons-round">crop_portrait</span>
+                  1080×1920
+                </span>
+                <span class="clip-format">
+                  <span class="material-icons-round">high_quality</span>
+                  MP4
+                </span>
+              </div>
+
+              <button class="btn-download" (click)="downloadClip(clip)" id="btn-download-{{ clip.partNumber }}">
+                <span class="material-icons-round">download</span>
+                Download
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Empty State (processing, no clips yet) -->
+    @if (s.status === 'processing' && s.clips.length === 0) {
+      <div class="empty-state">
+        <div class="processing-animation">
+          <div class="processing-ring"></div>
+          <span class="material-icons-round">content_cut</span>
+        </div>
+        <h3>Splitting your video...</h3>
+        <p>This may take a few minutes depending on video length</p>
+      </div>
+    }
+  }
+</section>
