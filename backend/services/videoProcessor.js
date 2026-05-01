@@ -226,6 +226,15 @@ const PIPELINE_STEPS = [
         const editPlan = createEditPlan(clip, mode);
         const seo = clip.seo || buildSeoPackage(clip, mode);
         const enrichedClip = { ...clip, editPlan, seo, title: seo.title, description: seo.description, hashtags: seo.hashtags };
+        logAi(`Job ${ctx.jobId}: AI editor plan for clip ${partNumber}/${total}`, {
+          mood: editPlan.mood,
+          zoomStyle: editPlan.visual?.zoomStyle,
+          pacingSeconds: editPlan.pacing?.cutEverySeconds,
+          attentionResets: editPlan.pacing?.attentionResetCount,
+          soundCues: editPlan.audio?.cues?.length || 0,
+          brollCallouts: editPlan.broll?.length || 0,
+          subtitles: 'forced_fancy_ass'
+        });
 
         let subtitlePath = path.join(ctx.segmentsDir, `${partPrefix}_forced.ass`);
         if (ctx.whisperAvailable) {

@@ -3,6 +3,7 @@ const { runFFmpeg, RESOLUTION_MAP, getFaceFocus } = require('../utils/ffmpeg');
 const { buildZoomAndCropFilters } = require('./zoomEngine');
 const { buildVisualEnhancementFilters } = require('./visualEnhancer');
 const { buildTransitionFilters } = require('./transitionEngine');
+const { buildHookOverlayFilters } = require('./hookOverlayEngine');
 const { buildSubtitleBurnFilter } = require('./subtitleEngine');
 const { buildSfxTracks } = require('./sfxEngine');
 const { selectMusicPath } = require('./musicEngine');
@@ -13,7 +14,8 @@ function buildVideoFilters({ subtitlePath, aspectRatio, cropMode, faceFocus, cli
   const filters = [
     ...buildZoomAndCropFilters({ aspectRatio, cropMode, faceFocus, clip }),
     ...buildVisualEnhancementFilters(clip),
-    ...buildTransitionFilters(clip)
+    ...buildTransitionFilters(clip),
+    ...buildHookOverlayFilters(clip)
   ];
 
   const subtitleFilter = buildSubtitleBurnFilter(subtitlePath);
@@ -90,7 +92,10 @@ async function renderFinalClip({
     subtitles: Boolean(subtitlePath && fs.existsSync(subtitlePath)),
     music: hasMusic ? selectedMusic : 'missing_or_disabled',
     sfxCount,
-    hasSourceAudio: hasAudio
+    hasSourceAudio: hasAudio,
+    humanEditorLayer: true,
+    hookOverlay: Boolean(clip.hookText || clip.title || clip.reason),
+    visualEffects: 'zoom_flash_focus_grade_caption_burn'
   });
 
   const args = ['-y', '-i', inputPath];

@@ -8,11 +8,17 @@ function buildZoomAndCropFilters({ aspectRatio = '9:16', cropMode = 'smart_crop'
   const { w, h } = RESOLUTION_MAP[aspectRatio] || RESOLUTION_MAP['9:16'];
   const energy = clip.details?.energyScore || 35;
   const retention = clip.details?.retentionScore || 35;
-  const zoomMultiplier = energy > 65 ? 1.16 : retention > 65 ? 1.13 : 1.10;
+  const zoomStyle = clip.editPlan?.visual?.zoomStyle || 'mixed';
+  const cutEvery = Math.max(2.2, Math.min(4.2, clip.editPlan?.pacing?.cutEverySeconds || 3.0));
+  const zoomMultiplier = energy > 65 || zoomStyle === 'reaction' || zoomStyle === 'fast'
+    ? 1.22
+    : retention > 65 || zoomStyle === 'slow_push'
+      ? 1.17
+      : 1.13;
   const zoomW = even(w * zoomMultiplier);
   const zoomH = even(h * zoomMultiplier);
-  const shakeX = Math.max(4, Math.round(w * (energy > 65 ? 0.016 : 0.009)));
-  const shakeY = Math.max(4, Math.round(h * (energy > 65 ? 0.010 : 0.006)));
+  const shakeX = Math.max(4, Math.round(w * (energy > 65 || zoomStyle === 'reaction' ? 0.020 : 0.010)));
+  const shakeY = Math.max(4, Math.round(h * (energy > 65 || zoomStyle === 'reaction' ? 0.013 : 0.007)));
 
   let xExpression = `(in_w-${w})/2`;
   if (cropMode === 'smart_crop' && faceFocus) {
@@ -21,10 +27,13 @@ function buildZoomAndCropFilters({ aspectRatio = '9:16', cropMode = 'smart_crop'
   }
 
   const yExpression = `(in_h-${h})/2`;
-  const punchPulse = "lt(mod(t\\,3.0)\\,0.16)";
-  const slowDrift = `sin(t*0.55)*${Math.max(2, Math.round(w * 0.006))}`;
-  const moveX = `${xExpression}+${slowDrift}+sin(t*9)*${shakeX}*${punchPulse}`;
-  const moveY = `${yExpression}+cos(t*7)*${shakeY}*${punchPulse}`;
+  const punchPulse = `lt(mod(t\\,${cutEvery.toFixed(2)})\\,0.18)`;
+  const slowDrift = `sin(t*0.55)*${Math.max(2, Math.round(w * 0.007))}`;
+  const slowPush = zoomStyle === 'slow_push' || zoomStyle === 'cinematic'
+    ? `+sin(t*0.22)*${Math.max(2, Math.round(w * 0.008))}`
+    : '';
+  const moveX = `${xExpression}+${slowDrift}${slowPush}+sin(t*10)*${shakeX}*${punchPulse}`;
+  const moveY = `${yExpression}+cos(t*8)*${shakeY}*${punchPulse}`;
 
   return [
     `scale='trunc(max(${zoomW},a*${zoomH})/2)*2':'trunc(max(${zoomH},${zoomW}/a)/2)*2'`,
