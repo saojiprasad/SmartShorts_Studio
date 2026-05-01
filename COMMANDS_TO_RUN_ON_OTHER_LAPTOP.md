@@ -13,6 +13,13 @@ python --version
 pip --version
 ```
 
+This Angular frontend requires Node.js 20.19 or newer. If `node -v` shows Node 14, 16, or 18, install/update Node before running the frontend:
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+node -v
+```
+
 If you are using bundled FFmpeg binaries in this repo:
 
 ```powershell
@@ -104,6 +111,7 @@ Expected filenames:
 
 ```text
 boom.mp3
+swoosh.mp3
 whoosh.mp3
 click.mp3
 clap.mp3
@@ -133,6 +141,23 @@ premium.mp3
 
 Use only royalty-free, licensed, or self-created audio.
 
+You can generate starter local SFX and music with FFmpeg, so the editor has boom/swoosh/click/clap/laugh/music immediately:
+
+```powershell
+New-Item -ItemType Directory -Force backend\assets\sfx, backend\assets\music | Out-Null
+
+ffmpeg -y -f lavfi -i "sine=frequency=58:duration=0.28" -af "volume=0.55,afade=t=out:st=0.12:d=0.16" backend\assets\sfx\boom.mp3
+ffmpeg -y -f lavfi -i "anoisesrc=color=pink:duration=0.36" -af "highpass=f=850,lowpass=f=3600,volume=0.28,afade=t=in:st=0:d=0.04,afade=t=out:st=0.24:d=0.12" backend\assets\sfx\swoosh.mp3
+ffmpeg -y -f lavfi -i "sine=frequency=1450:duration=0.055" -af "volume=0.30" backend\assets\sfx\click.mp3
+ffmpeg -y -f lavfi -i "anoisesrc=color=white:duration=0.08" -af "highpass=f=1800,volume=0.36" backend\assets\sfx\clap.mp3
+ffmpeg -y -f lavfi -i "sine=frequency=520:duration=0.24" -af "volume=0.22,tremolo=f=9:d=0.65" backend\assets\sfx\laugh.mp3
+
+ffmpeg -y -f lavfi -i "sine=frequency=110:duration=12" -f lavfi -i "sine=frequency=220:duration=12" -filter_complex "[0:a]volume=0.10[a0];[1:a]volume=0.045,tremolo=f=4:d=0.45[a1];[a0][a1]amix=inputs=2,afade=t=in:st=0:d=0.5,afade=t=out:st=11.2:d=0.8" backend\assets\music\hype.mp3
+ffmpeg -y -f lavfi -i "sine=frequency=146.83:duration=12" -f lavfi -i "sine=frequency=293.66:duration=12" -filter_complex "[0:a]volume=0.08[a0];[1:a]volume=0.04,aecho=0.6:0.45:700:0.25[a1];[a0][a1]amix=inputs=2,afade=t=in:st=0:d=0.5,afade=t=out:st=11.2:d=0.8" backend\assets\music\cinematic.mp3
+```
+
+Replace these generated placeholders with your own licensed creator sound packs whenever you want higher production value.
+
 ## 6. Create backend config
 
 ```powershell
@@ -145,12 +170,14 @@ Recommended `.env` for normal local use:
 
 ```env
 PORT=3000
-WHISPER_ENABLED=auto
+WHISPER_ENABLED=true
 WHISPER_MODEL=large-v3
 WHISPER_CLIP_MODEL=large-v3
 FFMPEG_PRESET=fast
 FFMPEG_CRF=22
 FFMPEG_THREADS=0
+DEFAULT_EFFECTS_LEVEL=aggressive
+FORCE_VERTICAL_OUTPUT=true
 QUEUE_ENABLED=false
 PYTHON_AI_URL=http://127.0.0.1:8001
 PYTHON_AI_ENABLED=false

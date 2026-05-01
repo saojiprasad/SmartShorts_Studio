@@ -225,14 +225,26 @@ const PIPELINE_STEPS = [
 
         const editPlan = createEditPlan(clip, mode);
         const seo = clip.seo || buildSeoPackage(clip, mode);
-        const enrichedClip = { ...clip, editPlan, seo, title: seo.title, description: seo.description, hashtags: seo.hashtags };
+        const enrichedClip = {
+          ...clip,
+          effectsLevel: ctx.options.effectsLevel || 'aggressive',
+          editPlan,
+          seo,
+          title: seo.title,
+          description: seo.description,
+          hashtags: seo.hashtags
+        };
         logAi(`Job ${ctx.jobId}: AI editor plan for clip ${partNumber}/${total}`, {
           mood: editPlan.mood,
+          emotion: enrichedClip.emotion,
           zoomStyle: editPlan.visual?.zoomStyle,
           pacingSeconds: editPlan.pacing?.cutEverySeconds,
           attentionResets: editPlan.pacing?.attentionResetCount,
           soundCues: editPlan.audio?.cues?.length || 0,
           brollCallouts: editPlan.broll?.length || 0,
+          effectsLevel: enrichedClip.effectsLevel,
+          sfxEnabled: ctx.options.enableSfx !== false,
+          bgmEnabled: ctx.options.enableBgm !== false,
           subtitles: 'forced_fancy_ass'
         });
 
@@ -272,7 +284,10 @@ const PIPELINE_STEPS = [
             options: {
               ...ctx.options,
               addSubtitles: true,
-              enableEffects: true
+              enableEffects: true,
+              enableSfx: ctx.options.enableSfx !== false,
+              enableBgm: ctx.options.enableBgm !== false,
+              effectsLevel: enrichedClip.effectsLevel
             },
             metadata: ctx.metadata
           });
@@ -334,6 +349,7 @@ const PIPELINE_STEPS = [
           },
           tips,
           editPlan,
+          effectsLevel: enrichedClip.effectsLevel,
           thumbnails: thumbnailPack
         };
 
@@ -378,7 +394,10 @@ async function processVideo(job) {
     clippingMode: options.clippingMode,
     aspectRatio: options.aspectRatio,
     subtitles: 'forced_on',
-    audio: options.enableAudio !== false
+    audio: options.enableAudio !== false,
+    sfx: options.enableSfx !== false,
+    bgm: options.enableBgm !== false,
+    effectsLevel: options.effectsLevel || 'aggressive'
   });
 
   const context = {

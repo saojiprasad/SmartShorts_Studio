@@ -167,7 +167,15 @@ const MODE_CONFIGS = {
 
 function resolveConfig(mode) {
   const normalized = normalizeMode(mode);
-  return MODE_CONFIGS[normalized] || MODE_CONFIGS.auto_viral;
+  const config = MODE_CONFIGS[normalized] || MODE_CONFIGS.auto_viral;
+  const targetDurations = [...new Set(config.targetDurations.map(duration => Math.min(duration, 58)))]
+    .filter(duration => duration >= config.minClipDuration);
+
+  return {
+    ...config,
+    targetDurations: targetDurations.length ? targetDurations : [Math.min(45, Math.max(config.minClipDuration, 30))],
+    maxClipDuration: Math.min(config.maxClipDuration, 59)
+  };
 }
 
 async function generateSmartClips(inputPath, srtPath, mode = 'auto_viral', onProgress = () => {}) {

@@ -172,10 +172,29 @@
               <span class="toggle-label">Inject Local B-Roll</span>
             </label>
             <label class="toggle-switch">
-              <input type="checkbox" [checked]="enableAudio()" (change)="toggleAudio()">
+              <input type="checkbox" [checked]="enableSfx()" (change)="toggleSfx()">
               <span class="slider"></span>
-              <span class="toggle-label">Sound Design Mix</span>
+              <span class="toggle-label">Auto SFX</span>
             </label>
+            <label class="toggle-switch">
+              <input type="checkbox" [checked]="enableBgm()" (change)="toggleBgm()">
+              <span class="slider"></span>
+              <span class="toggle-label">Background Music</span>
+            </label>
+          </div>
+
+          <label class="option-label">Effects Level</label>
+          <div class="duration-presets effects-levels">
+            @for (level of effectsLevels; track level.value) {
+              <button
+                class="preset-btn style-btn"
+                [class.active]="effectsLevel() === level.value"
+                (click)="setEffectsLevel(level.value)"
+              >
+                <span style="font-weight: 600;">{{ level.label }}</span>
+                <span style="font-size: 0.75rem; opacity: 0.8; text-align: center;">{{ level.desc }}</span>
+              </button>
+            }
           </div>
 
           <!-- Subtitle Styles (Conditionally shown if Subtitles enabled) -->

@@ -16,7 +16,8 @@ function safeDrawText(text = '') {
 
 function titleForThumbnail(clip, partNumber) {
   const title = clip.title || clip.hookText || `Part ${partNumber}`;
-  return safeDrawText(title.toUpperCase());
+  const words = title.split(/\s+/).filter(Boolean).slice(0, 4).join(' ');
+  return safeDrawText(words.toUpperCase());
 }
 
 async function extractPlainFrame(inputVideo, outputPath, seekTime) {
@@ -34,10 +35,12 @@ async function renderThumbnail(inputVideo, outputPath, width, height, text, seek
   const filter = [
     `scale='max(${width},a*${height})':'max(${height},${width}/a)'`,
     `crop=${width}:${height}:(in_w-${width})/2:(in_h-${height})/2`,
-    'eq=contrast=1.16:saturation=1.18:brightness=0.015',
-    'unsharp=5:5:0.55:3:3:0.25',
-    `drawbox=x=0:y=ih*0.68:w=iw:h=ih*0.32:color=black@0.58:t=fill`,
-    `drawtext=text='${text}':fontsize=${Math.round(width / 16)}:fontcolor=white:borderw=4:bordercolor=black:x=(w-text_w)/2:y=h*0.74`
+    'eq=contrast=1.22:saturation=1.26:brightness=0.018',
+    'unsharp=5:5:0.72:3:3:0.30',
+    `drawbox=x=0:y=ih*0.64:w=iw:h=ih*0.36:color=black@0.64:t=fill`,
+    `drawbox=x=${Math.round(width * 0.055)}:y=ih*0.665:w=12:h=${Math.round(height * 0.17)}:color=0xffd400@1:t=fill`,
+    `drawtext=text='VIRAL CLIP':fontsize=${Math.round(width / 34)}:fontcolor=0xffd400:borderw=3:bordercolor=black:x=${Math.round(width * 0.08)}:y=h*0.675`,
+    `drawtext=text='${text}':fontsize=${Math.round(width / 14)}:fontcolor=white:borderw=6:bordercolor=black:x=${Math.round(width * 0.08)}:y=h*0.73`
   ].join(',');
 
   await runFFmpeg([

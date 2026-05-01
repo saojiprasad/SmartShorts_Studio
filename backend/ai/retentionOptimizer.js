@@ -42,6 +42,37 @@ function getPreset(mode) {
   return MODE_PRESETS[normalizeMode(mode)] || MODE_PRESETS.auto_viral;
 }
 
+function applyEmotionOverrides(clip, preset) {
+  const emotion = String(clip.emotion || '').toLowerCase();
+  const reason = String(clip.reason || '').toLowerCase();
+  const energy = clip.details?.energyScore || 0;
+  const text = `${clip.hookText || ''} ${clip.title || ''} ${reason}`.toLowerCase();
+  const next = { ...preset };
+
+  if (emotion.includes('funny') || /\b(fun|laugh|joke|hilarious|ridiculous)\b/.test(text)) {
+    next.mood = 'funny';
+    next.zoom = 'reaction';
+    next.cutEvery = Math.min(next.cutEvery, 2.8);
+    next.music = 'meme';
+  } else if (emotion.includes('negative') || emotion.includes('sad')) {
+    next.mood = 'suspense';
+    next.zoom = 'slow_push';
+    next.cutEvery = Math.max(next.cutEvery, 4.0);
+    next.music = 'dark';
+  } else if (emotion.includes('positive') || /\b(motivat|inspire|changed my life|success)\b/.test(text)) {
+    next.mood = 'uplifting';
+    next.zoom = 'slow_push';
+    next.music = 'cinematic';
+  } else if (emotion.includes('tense') || emotion.includes('exciting') || energy > 70 || reason.includes('high-energy')) {
+    next.mood = 'aggressive';
+    next.zoom = 'reaction';
+    next.cutEvery = Math.min(next.cutEvery, 2.7);
+    next.music = 'high_energy';
+  }
+
+  return next;
+}
+
 function buildAttentionResets(duration, preset) {
   const resets = [];
   for (let t = preset.cutEvery; t < duration; t += preset.cutEvery) {
@@ -84,7 +115,7 @@ function buildBrollCues(clip) {
 
 function createEditPlan(clip = {}, mode = 'auto_viral') {
   const duration = Number(clip.duration) || 0;
-  const preset = getPreset(mode);
+  const preset = applyEmotionOverrides(clip, getPreset(mode));
   const attentionResets = buildAttentionResets(duration, preset);
   const brollCues = buildBrollCues(clip);
   const soundCues = buildSoundCues(clip, preset);

@@ -67,6 +67,20 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE }
 });
 
+const EFFECT_LEVELS = new Set(['low', 'medium', 'aggressive']);
+
+function normalizeEffectsLevel(value) {
+  if (EFFECT_LEVELS.has(value)) return value;
+  const fallback = process.env.DEFAULT_EFFECTS_LEVEL || 'aggressive';
+  return EFFECT_LEVELS.has(fallback) ? fallback : 'aggressive';
+}
+
+function normalizeClipDuration(value) {
+  const parsed = parseInt(value || process.env.DEFAULT_CLIP_DURATION || 45, 10);
+  if (!Number.isFinite(parsed)) return 45;
+  return Math.max(8, Math.min(parsed, 59));
+}
+
 // ── POST /api/upload ──────────────────────────────────────────────────
 // Upload a video file. Returns a job ID for tracking.
 router.post('/upload', upload.single('video'), (req, res) => {
@@ -107,6 +121,9 @@ router.post('/process', async (req, res) => {
     clippingMode,
     mode,
     enableAudio,
+    enableSfx,
+    enableBgm,
+    effectsLevel,
     musicVolume
   } = req.body;
 
@@ -126,12 +143,15 @@ router.post('/process', async (req, res) => {
   // Store processing options
   updateJob(jobId, {
     options: {
-      clipDuration: clipDuration || parseInt(process.env.DEFAULT_CLIP_DURATION) || 90,
+      clipDuration: normalizeClipDuration(clipDuration),
       addSubtitles: true,
-      aspectRatio: aspectRatio || '9:16',
+      aspectRatio: process.env.FORCE_VERTICAL_OUTPUT === 'false' ? (aspectRatio || '9:16') : '9:16',
       cropMode: cropMode || 'smart_crop',
       enableBroll: enableBroll || false,
       enableAudio: enableAudio !== false,
+      enableSfx: enableSfx !== false,
+      enableBgm: enableBgm !== false,
+      effectsLevel: normalizeEffectsLevel(effectsLevel),
       musicVolume: typeof musicVolume === 'number' ? musicVolume : 0.14,
       subtitleStyle: subtitleStyle || 'hormozi',
       clippingMode: clippingMode || 'smart',

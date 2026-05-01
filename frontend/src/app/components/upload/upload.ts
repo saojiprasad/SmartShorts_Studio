@@ -35,6 +35,9 @@ export class Upload {
   clipDuration = signal(45); // Used only if mode='fixed'
   enableBroll = signal(false);
   enableAudio = signal(true);
+  enableSfx = signal(true);
+  enableBgm = signal(true);
+  effectsLevel = signal<'low' | 'medium' | 'aggressive'>('aggressive');
   musicVolume = signal(0.14);
 
   // Presets
@@ -44,15 +47,10 @@ export class Upload {
   ];
 
   clipDurations = [
+    { value: 15, label: '15 seconds', icon: 'timer' },
     { value: 30, label: '30 seconds', icon: 'timer' },
     { value: 45, label: '45 seconds', icon: 'timer' },
-    { value: 60, label: '60 seconds', icon: 'timer' },
-    { value: 75, label: '75 seconds', icon: 'timer' },
-    { value: 90, label: '90 seconds', icon: 'timer' },
-    { value: 105, label: '105 seconds', icon: 'timer' },
-    { value: 120, label: '120 seconds', icon: 'timer' },
-    { value: 150, label: '150 seconds', icon: 'timer' },
-    { value: 180, label: '180 seconds', icon: 'timer' }
+    { value: 58, label: '58 seconds', icon: 'timer' }
   ];
 
   contentModes = [
@@ -88,6 +86,12 @@ export class Upload {
     { label: 'Smart Crop', value: 'smart_crop', desc: 'Face-aware framing' },
     { label: 'Center Crop', value: 'center_crop', desc: 'Fill screen' },
     { label: 'Letterbox', value: 'letterbox', desc: 'Black bars' }
+  ];
+
+  effectsLevels = [
+    { label: 'Low', value: 'low', desc: 'Cleaner, subtle editor movement' },
+    { label: 'Medium', value: 'medium', desc: 'Balanced zooms and flashes' },
+    { label: 'Aggressive', value: 'aggressive', desc: 'CapCut-style high retention edits' }
   ];
 
   aspectPresets = [
@@ -172,9 +176,12 @@ export class Upload {
   setAspectRatio(val: string) { this.aspectRatio.set(val); }
   setCropMode(val: string) { this.cropMode.set(val); }
   setSubtitleStyle(val: string) { this.subtitleStyle.set(val); }
+  setEffectsLevel(val: string) { this.effectsLevel.set(val as 'low' | 'medium' | 'aggressive'); }
   toggleSubtitles() { this.addSubtitles.set(true); }
   toggleBroll() { this.enableBroll.set(!this.enableBroll()); }
   toggleAudio() { this.enableAudio.set(!this.enableAudio()); }
+  toggleSfx() { this.enableSfx.set(!this.enableSfx()); }
+  toggleBgm() { this.enableBgm.set(!this.enableBgm()); }
 
   startUpload(): void {
     const file = this.selectedFile();
@@ -219,6 +226,9 @@ export class Upload {
       addSubtitles: true,
       enableBroll: this.enableBroll(),
       enableAudio: this.enableAudio(),
+      enableSfx: this.enableSfx(),
+      enableBgm: this.enableBgm(),
+      effectsLevel: this.effectsLevel(),
       musicVolume: this.musicVolume(),
       subtitleStyle: this.subtitleStyle()
     };

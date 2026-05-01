@@ -29,10 +29,10 @@ function buildVideoFilters({ subtitlePath, aspectRatio, cropMode, faceFocus, cli
   return `[0:v]${filters.join(',')}[vout]`;
 }
 
-function buildAudioFilters({ hasAudio, hasMusic, clip, musicVolume }) {
+function buildAudioFilters({ hasAudio, hasMusic, clip, musicVolume, enableSfx }) {
   const duration = Math.max(0.1, Number(clip.duration) || 0.1);
   const filters = [];
-  const sfx = buildSfxTracks(clip);
+  const sfx = enableSfx ? buildSfxTracks(clip) : [];
 
   if (hasAudio && hasMusic) {
     filters.push('[0:a]volume=1.08,loudnorm=I=-16:TP=-1.5:LRA=11,asplit=2[voice][voice_side]');
@@ -72,17 +72,20 @@ async function renderFinalClip({
 }) {
   const aspectRatio = options.aspectRatio || '9:16';
   const cropMode = options.cropMode || 'smart_crop';
+  const renderClip = { ...clip, effectsLevel: options.effectsLevel || clip.effectsLevel || 'aggressive' };
   const faceFocus = cropMode === 'smart_crop' ? await getFaceFocus(inputPath) : null;
-  const selectedMusic = musicPath || selectMusicPath(clip);
-  const hasMusic = options.enableAudio !== false && selectedMusic && fs.existsSync(selectedMusic);
+  const selectedMusic = musicPath || selectMusicPath(renderClip);
+  const enableBgm = options.enableAudio !== false && options.enableBgm !== false;
+  const enableSfx = options.enableAudio !== false && options.enableSfx !== false;
+  const hasMusic = enableBgm && selectedMusic && fs.existsSync(selectedMusic);
   const hasAudio = (metadata.audioChannels || 0) > 0;
   const musicVolume = typeof options.musicVolume === 'number' ? options.musicVolume : 0.14;
 
   const filterGraph = [
-    buildVideoFilters({ subtitlePath, aspectRatio, cropMode, faceFocus, clip, partNumber }),
-    buildAudioFilters({ hasAudio, hasMusic, clip, musicVolume })
+    buildVideoFilters({ subtitlePath, aspectRatio, cropMode, faceFocus, clip: renderClip, partNumber }),
+    buildAudioFilters({ hasAudio, hasMusic, clip: renderClip, musicVolume, enableSfx })
   ].join(';');
-  const sfxCount = buildSfxTracks(clip).length;
+  const sfxCount = enableSfx ? buildSfxTracks(renderClip).length : 0;
   logRender('Final renderer assembled FFmpeg graph', {
     input: inputPath,
     output: outputPath,
@@ -91,10 +94,13 @@ async function renderFinalClip({
     faceTracking: Boolean(faceFocus),
     subtitles: Boolean(subtitlePath && fs.existsSync(subtitlePath)),
     music: hasMusic ? selectedMusic : 'missing_or_disabled',
+    bgmEnabled: enableBgm,
+    sfxEnabled: enableSfx,
     sfxCount,
     hasSourceAudio: hasAudio,
+    effectsLevel: renderClip.effectsLevel,
     humanEditorLayer: true,
-    hookOverlay: Boolean(clip.hookText || clip.title || clip.reason),
+    hookOverlay: Boolean(renderClip.hookText || renderClip.title || renderClip.reason),
     visualEffects: 'zoom_flash_focus_grade_caption_burn'
   });
 

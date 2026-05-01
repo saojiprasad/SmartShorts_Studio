@@ -10,15 +10,17 @@ function buildZoomAndCropFilters({ aspectRatio = '9:16', cropMode = 'smart_crop'
   const retention = clip.details?.retentionScore || 35;
   const zoomStyle = clip.editPlan?.visual?.zoomStyle || 'mixed';
   const cutEvery = Math.max(2.2, Math.min(4.2, clip.editPlan?.pacing?.cutEverySeconds || 3.0));
-  const zoomMultiplier = energy > 65 || zoomStyle === 'reaction' || zoomStyle === 'fast'
+  const effectScale = ({ low: 0.62, medium: 0.88, aggressive: 1.12 })[clip.effectsLevel || 'aggressive'] || 1;
+  const baseZoomMultiplier = energy > 65 || zoomStyle === 'reaction' || zoomStyle === 'fast'
     ? 1.22
     : retention > 65 || zoomStyle === 'slow_push'
       ? 1.17
       : 1.13;
+  const zoomMultiplier = 1 + ((baseZoomMultiplier - 1) * effectScale);
   const zoomW = even(w * zoomMultiplier);
   const zoomH = even(h * zoomMultiplier);
-  const shakeX = Math.max(4, Math.round(w * (energy > 65 || zoomStyle === 'reaction' ? 0.020 : 0.010)));
-  const shakeY = Math.max(4, Math.round(h * (energy > 65 || zoomStyle === 'reaction' ? 0.013 : 0.007)));
+  const shakeX = Math.max(3, Math.round(w * (energy > 65 || zoomStyle === 'reaction' ? 0.020 : 0.010) * effectScale));
+  const shakeY = Math.max(3, Math.round(h * (energy > 65 || zoomStyle === 'reaction' ? 0.013 : 0.007) * effectScale));
 
   let xExpression = `(in_w-${w})/2`;
   if (cropMode === 'smart_crop' && faceFocus) {

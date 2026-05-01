@@ -39,7 +39,7 @@ The frontend gives you a creator dashboard. The backend runs the AI/media pipeli
 
 1. Open the app at `http://localhost:4200`.
 2. Drag and drop a long video file.
-3. Choose the AI mode, caption style, crop mode, aspect ratio, and optional B-roll/audio settings.
+3. Choose the AI mode, caption style, effects level, SFX/BGM toggles, crop mode, aspect ratio, and optional B-roll settings.
 4. Click **Generate Viral Shorts**.
 5. Watch live progress.
 6. Preview each generated short.
@@ -212,6 +212,8 @@ The final renderer applies creator-style visual polish inside the final FFmpeg c
 - Sharpening.
 - Mood-based color grade.
 - Light attention-reset flashes.
+- Hook intro overlay, reaction sticker text, and keyword callouts.
+- Effects-level scaling for low, medium, or aggressive creator edits.
 - Bottom progress bar.
 - Burned ASS captions.
 - Generated boom/click/whoosh sound effects.

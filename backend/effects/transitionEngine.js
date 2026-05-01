@@ -3,9 +3,10 @@ function buildTransitionFilters(clip = {}) {
   const resetEvery = Math.max(2.2, Math.min(4.0, clip.editPlan?.pacing?.cutEverySeconds || 3.1));
   const energy = clip.details?.energyScore || 35;
   const hookScore = clip.details?.hookScore || 35;
-  const flashStrength = energy > 65 || hookScore > 65 ? 0.18 : 0.11;
-  const darkFrameStrength = energy > 70 ? 0.16 : 0.09;
-  const resetWindow = energy > 65 ? 0.10 : 0.07;
+  const effectScale = ({ low: 0.55, medium: 0.82, aggressive: 1.08 })[clip.effectsLevel || 'aggressive'] || 1;
+  const flashStrength = Math.min(0.24, (energy > 65 || hookScore > 65 ? 0.18 : 0.11) * effectScale);
+  const darkFrameStrength = Math.min(0.20, (energy > 70 ? 0.16 : 0.09) * effectScale);
+  const resetWindow = Math.min(0.13, (energy > 65 ? 0.10 : 0.07) * effectScale);
   const progressHeight = energy > 65 ? 14 : 10;
 
   return [

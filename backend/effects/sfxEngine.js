@@ -2,12 +2,13 @@ const fs = require('fs');
 const path = require('path');
 
 const SFX_DIR = path.resolve(__dirname, '../assets/sfx');
-const SFX_FILE_MAP = {
-  boom: 'boom.mp3',
-  whoosh: 'whoosh.mp3',
-  click: 'click.mp3',
-  clap: 'clap.mp3',
-  laugh: 'laugh.mp3'
+const SFX_FILE_CANDIDATES = {
+  boom: ['boom.mp3'],
+  whoosh: ['swoosh.mp3', 'whoosh.mp3'],
+  swoosh: ['swoosh.mp3', 'whoosh.mp3'],
+  click: ['click.mp3'],
+  clap: ['clap.mp3'],
+  laugh: ['laugh.mp3']
 };
 
 function escapeFilterPath(filePath) {
@@ -20,6 +21,15 @@ function inferCueType(clip, index) {
   if (/\b(fun|laugh|joke|hilarious|ridiculous)\b/.test(text)) return 'laugh';
   if (/\b(clap|applause|win|success)\b/.test(text)) return 'clap';
   return index % 2 ? 'whoosh' : 'click';
+}
+
+function resolveSfxFile(type) {
+  const candidates = SFX_FILE_CANDIDATES[type] || SFX_FILE_CANDIDATES.click;
+  for (const file of candidates) {
+    const filePath = path.join(SFX_DIR, file);
+    if (fs.existsSync(filePath)) return filePath;
+  }
+  return path.join(SFX_DIR, candidates[0]);
 }
 
 function buildCueList(clip = {}) {
@@ -62,7 +72,7 @@ function buildSfxTracks(clip = {}) {
   return buildCueList(clip).map((cue, index) => {
     const label = `sfx${index}`;
     const delay = Math.round(cue.at * 1000);
-    const filePath = path.join(SFX_DIR, SFX_FILE_MAP[cue.type] || SFX_FILE_MAP.click);
+    const filePath = resolveSfxFile(cue.type);
     return {
       label,
       filter: fs.existsSync(filePath)

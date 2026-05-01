@@ -25,23 +25,37 @@ function isWhisperAvailable() {
 async function generateSubtitles(videoPath, outputDir, model = 'large-v3') {
   const baseName = path.basename(videoPath, path.extname(videoPath));
   const expectedSrt = path.join(outputDir, `${baseName}.srt`);
-  const firstTry = await runWhisper(videoPath, outputDir, expectedSrt, model);
-  if (firstTry || model === 'base') return firstTry;
+  const firstTry = await runWhisper(videoPath, outputDir, expectedSrt, model, { wordTimestamps: true });
+  if (firstTry) return firstTry;
+
+  const compatibilityTry = await runWhisper(videoPath, outputDir, expectedSrt, model, { wordTimestamps: false });
+  if (compatibilityTry || model === 'base') return compatibilityTry;
 
   console.warn(`  [Whisper] Retrying ${path.basename(videoPath)} with base model.`);
-  return runWhisper(videoPath, outputDir, expectedSrt, 'base');
+  return runWhisper(videoPath, outputDir, expectedSrt, 'base', { wordTimestamps: true })
+    .then(result => result || runWhisper(videoPath, outputDir, expectedSrt, 'base', { wordTimestamps: false }));
 }
 
-function runWhisper(videoPath, outputDir, expectedSrt, model) {
+function runWhisper(videoPath, outputDir, expectedSrt, model, { wordTimestamps = false } = {}) {
   return new Promise(resolve => {
-    logWhisper('Transcribing video/audio', { file: path.basename(videoPath), model });
+    logWhisper('Transcribing video/audio', {
+      file: path.basename(videoPath),
+      model,
+      wordTimestamps
+    });
 
-    const proc = spawn('whisper', [
+    const args = [
       videoPath,
       '--model', model,
-      '--output_format', 'srt',
+      '--output_format', wordTimestamps ? 'all' : 'srt',
       '--output_dir', outputDir
-    ], { stdio: ['ignore', 'pipe', 'pipe'] });
+    ];
+
+    if (wordTimestamps) {
+      args.push('--word_timestamps', 'True');
+    }
+
+    const proc = spawn('whisper', args, { stdio: ['ignore', 'pipe', 'pipe'] });
 
     proc.on('close', code => {
       if (code === 0 && fs.existsSync(expectedSrt)) {
