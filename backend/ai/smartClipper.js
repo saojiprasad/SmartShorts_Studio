@@ -202,6 +202,7 @@ async function generateSmartClips(inputPath, srtPath, mode = 'auto_viral', onPro
 
   const silences = await detectSilence(inputPath, -30, 0.45);
   const energyPeaks = await detectEnergyPeaks(inputPath, 2, totalDuration);
+  console.log(`  [SmartClipper] Detected ${scenes.length} scene changes and ${energyPeaks.length} energy peaks.`);
   const topEnergy = findTopEnergyMoments(energyPeaks, 40);
   logAi('SmartClipper audio analysis complete', {
     silences: silences.length,
@@ -213,7 +214,9 @@ async function generateSmartClips(inputPath, srtPath, mode = 'auto_viral', onPro
   let transcriptSegments = [];
   let transcriptSummary = null;
   if (srtPath && fs.existsSync(srtPath)) {
+    console.log(`  [SmartClipper] Analyzing transcript for hooks: ${srtPath}`);
     const analysis = analyzeTranscript(fs.readFileSync(srtPath, 'utf-8'));
+    console.log(`  [SmartClipper] Transcript analysis complete. Segments: ${analysis.segments.length}, Best hook score: ${analysis.overallHookScore}`);
     transcriptSegments = analysis.segments;
     transcriptSummary = {
       overallHookScore: analysis.overallHookScore,

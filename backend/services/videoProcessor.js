@@ -81,6 +81,7 @@ const PIPELINE_STEPS = [
       const metadata = await getVideoMetadata(ctx.originalFile);
       progress(60);
       const totalDuration = await getVideoDuration(ctx.originalFile);
+      console.log(`[Job ${ctx.jobId}] Step 1: Complete - Duration: ${totalDuration}s, Mode: ${normalizeMode(ctx.options.mode || 'auto_viral')}`);
       logAi(`Job ${ctx.jobId}: source analysis complete`, {
         durationSeconds: Number(totalDuration.toFixed(2)),
         width: metadata.width,
@@ -128,6 +129,11 @@ const PIPELINE_STEPS = [
 
       logAi(`Job ${ctx.jobId}: running local Whisper`, { model });
       const fullSrt = await generateSubtitles(ctx.originalFile, ctx.segmentsDir, model);
+      if (fullSrt) {
+        console.log(`[Job ${ctx.jobId}] Step 2: Transcription success. SRT saved at: ${fullSrt}`);
+      } else {
+        console.error(`[Job ${ctx.jobId}] Step 2: Transcription FAILED or returned no result.`);
+      }
       logAi(`Job ${ctx.jobId}: local Whisper finished`, {
         transcript: fullSrt ? path.basename(fullSrt) : 'not_created',
         fallbackCaptions: !fullSrt
