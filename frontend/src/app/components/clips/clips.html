@@ -113,6 +113,21 @@
                 </div>
               }
 
+              @if (clip.assetTimeline?.length) {
+                <div class="effect-timeline">
+                  @for (event of getTimelineEvents(clip); track $index) {
+                    <div class="effect-marker" [style.left.%]="(event.time / (+clip.duration || 1)) * 100" [title]="getEventLabel(event)">
+                      <span></span>
+                    </div>
+                  }
+                </div>
+                <div class="effect-list">
+                  @for (event of getTimelineEvents(clip); track $index) {
+                    <span>{{ event.time | number:'1.1-1' }}s · {{ getEventLabel(event) }}</span>
+                  }
+                </div>
+              }
+
               @if (clip.tips?.length) {
                 <div class="tips-list">
                   @for (tip of clip.tips; track tip) {

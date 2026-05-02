@@ -62,7 +62,7 @@ async function addBRoll(mainVideoPath, bRollVideoPath, outputPath) {
     '-i', bRollVideoPath,
     '-filter_complex', filterGraph,
     '-map', '[outv]',
-    '-map', '0:a', // keep original audio
+    '-map', '0:a?', // keep original audio when present
     '-c:v', 'libx264',
     '-preset', 'fast',
     '-crf', '23',

@@ -10,7 +10,9 @@ function isWhisperAvailable() {
       return;
     }
 
-    const proc = spawn('whisper', ['--help'], { stdio: 'ignore' });
+    // On Windows, Whisper might crash on --help due to encoding issues. Force UTF8.
+    const env = { ...process.env, PYTHONUTF8: '1' };
+    const proc = spawn('whisper', ['--help'], { stdio: 'ignore', env });
     proc.on('close', code => {
       logWhisper('Availability check complete', { available: code === 0 });
       resolve(code === 0);
@@ -36,6 +38,7 @@ async function generateSubtitles(videoPath, outputDir, model = 'large-v3') {
     .then(result => result || runWhisper(videoPath, outputDir, expectedSrt, 'base', { wordTimestamps: false }));
 }
 
+
 function runWhisper(videoPath, outputDir, expectedSrt, model, { wordTimestamps = false } = {}) {
   return new Promise(resolve => {
     logWhisper('Transcribing video/audio', {
@@ -55,7 +58,8 @@ function runWhisper(videoPath, outputDir, expectedSrt, model, { wordTimestamps =
       args.push('--word_timestamps', 'True');
     }
 
-    const proc = spawn('whisper', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const env = { ...process.env, PYTHONUTF8: '1' };
+    const proc = spawn('whisper', args, { stdio: ['ignore', 'pipe', 'pipe'], env });
 
     proc.on('close', code => {
       if (code === 0 && fs.existsSync(expectedSrt)) {

@@ -58,6 +58,20 @@ const STYLES = {
     accent: '&H00D7D7D7&',
     fontSize: 64
   },
+  anime: {
+    line: 'Style: Default,Arial Black,76,&H00FFFFFF,&H00FF77FF,&H001D0030,&HAA000000,1,0,0,0,100,100,0,0,1,7,3,2,58,58,210,1',
+    upper: true,
+    primary: '&H00FFFFFF&',
+    accent: '&H00FF77FF&',
+    fontSize: 78
+  },
+  luxury_alpha: {
+    line: 'Style: Default,Georgia,62,&H00F5F1EA,&H00C7A35A,&H00151412,&H99000000,1,0,0,0,100,100,0,0,1,5,2,2,88,88,230,1',
+    upper: false,
+    primary: '&H00F5F1EA&',
+    accent: '&H00C7A35A&',
+    fontSize: 66
+  },
   minimalist: {
     line: 'Style: Default,Arial,58,&H00FFFFFF,&H00FFFFFF,&H00000000,&H66000000,1,0,0,0,100,100,0,0,1,5,1,2,104,104,220,1',
     upper: false,

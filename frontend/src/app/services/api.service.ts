@@ -75,6 +75,15 @@ export interface Clip {
     broll?: unknown[];
     layers?: { type: string; name: string }[];
   };
+  assetTimeline?: {
+    type?: string;
+    effect?: string;
+    sound?: string | { name: string; path: string };
+    emoji?: string;
+    time: number;
+    duration?: number;
+    intensity?: number;
+  }[];
   seo?: {
     title: string;
     description: string;
@@ -99,6 +108,12 @@ export interface JobStatus {
     totalDuration?: number;
     mode?: string;
     selectedMoments?: unknown[];
+    timelinePreview?: {
+      index: number;
+      start: number;
+      end: number;
+      effects: unknown[];
+    }[];
     metadata?: Record<string, unknown>;
   };
   thumbnails?: unknown[];

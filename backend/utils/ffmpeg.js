@@ -39,9 +39,12 @@ function runFFmpeg(args, label = 'FFmpeg') {
 
     proc.on('close', code => {
       if (code === 0) {
+        console.log(`  [${label}] Success.`);
         resolve();
       } else {
-        reject(new Error(`[${label}] FFmpeg exited with code ${code}:\n${stderr.slice(-1200)}`));
+        const errorMsg = `[${label}] FFmpeg exited with code ${code}.\nArgs: ${args.join(' ')}\nError: ${stderr.slice(-600)}`;
+        console.error(errorMsg);
+        reject(new Error(errorMsg));
       }
     });
 

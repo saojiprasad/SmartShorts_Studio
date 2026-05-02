@@ -7,18 +7,32 @@ const fs = require('fs');
 const apiRoutes = require('./routes/api');
 const sseRoutes = require('./routes/sse');
 const { startQueueWorker, isQueueEnabled } = require('./services/queueManager');
+const { ASSET_ROOT, ensureAssetTree, rebuildAssetIndex } = require('./services/assetLibrary');
+const { installRequiredAssets } = require('./services/assetInstaller');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || './uploads');
 const OUTPUT_DIR = path.resolve(process.env.OUTPUT_DIR || './outputs');
 
-[UPLOAD_DIR, OUTPUT_DIR].forEach(dir => {
+[UPLOAD_DIR, OUTPUT_DIR, ASSET_ROOT].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
     console.log(`Created directory: ${dir}`);
   }
 });
+ensureAssetTree();
+installRequiredAssets()
+  .then(results => {
+    const installed = results.filter(item => item.installed).length;
+    console.log(`[Assets] Ready. Installed ${installed} missing local editor assets.`);
+  })
+  .catch(error => {
+    console.warn(`[Assets] Installer skipped: ${error.message}`);
+    rebuildAssetIndex().catch(indexError => {
+      console.warn(`[Assets] Initial index rebuild skipped: ${indexError.message}`);
+    });
+  });
 
 app.use(cors());
 app.use(express.json());

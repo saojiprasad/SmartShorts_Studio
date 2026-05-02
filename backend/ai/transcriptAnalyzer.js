@@ -133,12 +133,10 @@ function analyzeTranscript(srtContent) {
     ...analyzeSegment(seg.text)
   }));
 
-  const overallHookScore = analyzed.length > 0
-    ? Math.round(analyzed.reduce((sum, s) => sum + s.hookScore, 0) / analyzed.length)
-    : 0;
+  const bestHookSegment = analyzed.length > 0 ? [...analyzed].sort((a, b) => b.hookScore - a.hookScore)[0] : null;
+  const overallHookScore = bestHookSegment ? bestHookSegment.hookScore : 0;
 
-  const bestHookSegment = analyzed.reduce((best, seg) =>
-    seg.hookScore > (best?.hookScore || 0) ? seg : best, null);
+  console.log(`  [Transcript] Analyzed ${analyzed.length} blocks. Top hook score: ${overallHookScore}, Emotion: ${bestHookSegment?.emotion || 'neutral'}`);
 
   // Count emotions
   const emotionMap = {};

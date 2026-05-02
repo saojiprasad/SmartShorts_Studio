@@ -134,10 +134,22 @@ export class Clips implements OnInit, OnDestroy {
   }
 
   getTimelineSummary(clip: Clip): string {
-    const resets = clip.editPlan?.pacing?.attentionResetCount || 0;
+    const resets = clip.editPlan?.pacing?.attentionResetCount || clip.assetTimeline?.filter(event => event.type === 'flash' || event.effect === 'attention_reset').length || 0;
     const mood = clip.editPlan?.mood || 'auto';
     const music = clip.editPlan?.audio?.musicMood || 'balanced';
-    return `${mood} edit, ${resets} attention resets, ${music} music`;
+    const sfx = clip.assetTimeline?.filter(event => event.type === 'sfx' || event.sound).length || 0;
+    return `${mood} edit, ${resets} resets, ${sfx} SFX, ${music} music`;
+  }
+
+  getTimelineEvents(clip: Clip): NonNullable<Clip['assetTimeline']> {
+    return (clip.assetTimeline || []).slice(0, 10);
+  }
+
+  getEventLabel(event: NonNullable<Clip['assetTimeline']>[number]): string {
+    if (typeof event.sound === 'string') return `SFX ${event.sound}`;
+    if (event.sound && typeof event.sound === 'object') return `SFX ${event.sound.name}`;
+    if (event.emoji) return `Emoji ${event.emoji}`;
+    return event.type || event.effect || 'effect';
   }
 
   formatDuration(seconds: string | number): string {
