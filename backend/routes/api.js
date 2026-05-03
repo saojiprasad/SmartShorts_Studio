@@ -69,6 +69,7 @@ const upload = multer({
 
 const EFFECT_LEVELS = new Set(['low', 'medium', 'aggressive']);
 const FIXED_CLIP_DURATIONS = new Set([30, 45, 60, 75, 90, 120, 150, 180]);
+const ASPECT_RATIOS = new Set(['9:16', '16:9', '1:1', '4:5']);
 
 function normalizeEffectsLevel(value) {
   if (EFFECT_LEVELS.has(value)) return value;
@@ -84,6 +85,10 @@ function normalizeClipDuration(value) {
 
 function normalizeClippingMode(value) {
   return value === 'fixed' || value === 'subtitle_only' ? value : 'smart';
+}
+
+function normalizeAspectRatio(value) {
+  return ASPECT_RATIOS.has(value) ? value : '9:16';
 }
 
 // ── POST /api/upload ──────────────────────────────────────────────────
@@ -148,13 +153,17 @@ router.post('/process', async (req, res) => {
   const normalizedClippingMode = normalizeClippingMode(clippingMode);
   const resolvedMode = normalizedClippingMode === 'smart' ? (mode || 'auto_viral') : normalizedClippingMode;
   const aiModeEnabled = normalizedClippingMode === 'smart';
+  const selectedAspectRatio = normalizeAspectRatio(aspectRatio);
+  const resolvedAspectRatio = aiModeEnabled && process.env.FORCE_VERTICAL_OUTPUT !== 'false'
+    ? '9:16'
+    : selectedAspectRatio;
 
   // Store processing options
   updateJob(jobId, {
     options: {
       clipDuration: normalizeClipDuration(clipDuration),
       addSubtitles: normalizedClippingMode !== 'fixed',
-      aspectRatio: process.env.FORCE_VERTICAL_OUTPUT === 'false' ? (aspectRatio || '9:16') : '9:16',
+      aspectRatio: resolvedAspectRatio,
       cropMode: cropMode || 'smart_crop',
       enableBroll: aiModeEnabled && Boolean(enableBroll),
       enableAudio: enableAudio !== false,

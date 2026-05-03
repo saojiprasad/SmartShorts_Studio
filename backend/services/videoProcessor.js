@@ -288,9 +288,18 @@ const PIPELINE_STEPS = [
               output: finalOutputName,
               start: clip.start,
               duration: clip.duration,
-              overlay: `PART ${partNumber}`
+              overlay: `PART ${partNumber}`,
+              aspectRatio: ctx.options.aspectRatio
             });
-            await renderFixedPartClip(clip.path, finalPath, partNumber, clip.start, clip.duration);
+            await renderFixedPartClip(
+              clip.path,
+              finalPath,
+              partNumber,
+              clip.start,
+              clip.duration,
+              ctx.options.aspectRatio,
+              ctx.options.cropMode
+            );
           } catch (error) {
             console.warn(`[FixedClips] Part label render failed for part ${partNumber}; falling back to precise cut. ${error.message}`);
             await cutClip(clip.path, finalPath, clip.start, clip.duration);

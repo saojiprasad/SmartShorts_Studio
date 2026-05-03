@@ -8,7 +8,7 @@ SmartShorts Studio now has three clipping modes:
 
 ```text
 AI Studio      = AI selects viral moments and applies full creator editing.
-Fixed Clips    = strict time-based clips only; no AI, subtitles, effects, SFX, BGM, or thumbnails. Each output burns only a top PART number.
+Fixed Clips    = strict time-based clips only; no AI, subtitles, effects, SFX, BGM, or thumbnails. The selected output format is applied, and each output burns only a top PART number.
 Subtitle Only  = fixed time-based clips with burned captions only; no zooms, hook overlay, SFX, or BGM.
 ```
 

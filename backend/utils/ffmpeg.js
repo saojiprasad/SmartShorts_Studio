@@ -198,10 +198,12 @@ function escapeSubtitleFilterPath(subtitlePath) {
   return subtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'");
 }
 
-async function renderFixedPartClip(inputPath, outputPath, partNumber, startSec, durationSec) {
+async function renderFixedPartClip(inputPath, outputPath, partNumber, startSec, durationSec, aspectRatio = '9:16', cropMode = 'center_crop') {
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
+  const fixedCropMode = cropMode === 'letterbox' ? 'letterbox' : 'center_crop';
   const filters = [
+    ...buildFramingFilters(aspectRatio, fixedCropMode, null),
     `drawtext=text='PART ${partNumber}':fontsize=54:fontcolor=white:` +
     `x=(w-text_w)/2:y=54:borderw=4:bordercolor=black@0.88:` +
     `box=1:boxcolor=black@0.46:boxborderw=14`,

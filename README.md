@@ -49,7 +49,7 @@ The frontend gives you a creator dashboard. The backend runs the AI/media pipeli
 
 ## Creator Modes
 
-The upload screen includes three clipping engines. AI Studio changes clip selection, pacing, effects, music mood, captions, and retention strategy. Fixed Clips exports strict time-based clips with only a top PART number label and no AI/editing layers. Subtitle Only exports time-based clips with burned captions and no extra edit layers.
+The upload screen includes three clipping engines. AI Studio changes clip selection, pacing, effects, music mood, captions, and retention strategy. Fixed Clips exports strict time-based clips in the selected output format, with only a top PART number label and no AI/editing layers. Subtitle Only exports time-based clips with burned captions and no extra edit layers.
 
 | Mode | What It Prioritizes |
 |---|---|
