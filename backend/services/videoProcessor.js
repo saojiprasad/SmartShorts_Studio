@@ -25,20 +25,32 @@ function buildFixedClip(file, index, options) {
     start: index * duration,
     end: (index + 1) * duration,
     duration,
-    viralScore: 35,
+    viralScore: 0,
     hookText: '',
     emotion: 'neutral',
     reason: 'Fixed duration split',
     details: {
       hookScore: 0,
-      energyScore: 30,
-      sceneScore: 15,
-      pacingScore: 30,
-      retentionScore: 35,
-      engagementPrediction: 30,
-      replayPotential: 25
+      energyScore: 0,
+      sceneScore: 0,
+      pacingScore: 0,
+      retentionScore: 0,
+      engagementPrediction: 0,
+      replayPotential: 0
     }
   };
+
+  if (options?.clippingMode !== 'smart') {
+    return {
+      ...clip,
+      grade: 'C',
+      title: `Clip ${String(index + 1).padStart(2, '0')}`,
+      description: '',
+      hashtags: [],
+      seo: null
+    };
+  }
+
   const scored = scoreClipViral(clip);
   const seo = buildSeoPackage({ ...clip, viralScore: scored.viralScore }, normalizeMode(options.mode || 'auto_viral'));
   return {
@@ -104,7 +116,7 @@ const PIPELINE_STEPS = [
     name: 'transcribe_full',
     description: 'Creating transcript for hook and subtitle analysis',
     execute: async (ctx, progress) => {
-      const needsTranscript = true;
+      const needsTranscript = ctx.options.clippingMode === 'smart';
       if (!needsTranscript) {
         progress(100);
         return { fullSrt: null, whisperAvailable: false };
@@ -216,10 +228,63 @@ const PIPELINE_STEPS = [
       const titles = [];
       const total = ctx.clipsToProcess.length;
       const mode = normalizeMode(ctx.options.mode || 'auto_viral');
+      const fixedOnly = ctx.options.clippingMode !== 'smart';
 
       if (total === 0) {
         progress(100);
         return { processedClips: [] };
+      }
+
+      if (fixedOnly) {
+        for (let i = 0; i < total; i++) {
+          const clip = ctx.clipsToProcess[i];
+          const partNumber = i + 1;
+          const partPrefix = `Part_${String(partNumber).padStart(2, '0')}`;
+          const finalPath = path.join(ctx.jobOutputDir, `${partPrefix}.mp4`);
+          const finalOutputName = `${partPrefix}.mp4`;
+
+          fs.copyFileSync(clip.path, finalPath);
+
+          const stats = fs.statSync(finalPath);
+          const publicBasePath = `/outputs/${ctx.jobId}`;
+          const outputClip = {
+            name: finalOutputName,
+            partNumber,
+            path: `${publicBasePath}/${finalOutputName}`,
+            size: `${(stats.size / (1024 * 1024)).toFixed(2)} MB`,
+            sizeBytes: stats.size,
+            duration: Number(clip.duration).toFixed(1),
+            start: clip.start,
+            end: clip.end,
+            viralScore: 0,
+            grade: 'C',
+            hookText: '',
+            title: `Clip ${String(partNumber).padStart(2, '0')}`,
+            description: '',
+            hashtags: [],
+            seo: null,
+            reason: clip.reason,
+            emotion: 'neutral',
+            details: clip.details || {},
+            tips: [],
+            editPlan: null,
+            effectsLevel: 'off',
+            thumbnails: {}
+          };
+
+          processedClips.push(outputClip);
+          titles.push(outputClip.title);
+          updateJob(ctx.jobId, {
+            clips: [...processedClips],
+            processedClips: partNumber,
+            totalClips: total,
+            thumbnails: [...thumbnails],
+            titles: [...titles]
+          });
+          progress(((i + 1) / total) * 100);
+        }
+
+        return { processedClips, thumbnails, titles };
       }
 
       for (let i = 0; i < total; i++) {
