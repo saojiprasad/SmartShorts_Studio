@@ -61,6 +61,20 @@ function runWhisper(videoPath, outputDir, expectedSrt, model, { wordTimestamps =
     const env = { ...process.env, PYTHONUTF8: '1' };
     const proc = spawn('whisper', args, { stdio: ['ignore', 'pipe', 'pipe'], env });
 
+    // Pipe Whisper output to the main process so we can see real-time progress
+    proc.stdout.on('data', data => {
+      const line = data.toString().trim();
+      if (line) console.log(`    [Whisper Progress] ${line}`);
+    });
+
+    proc.stderr.on('data', data => {
+      const line = data.toString().trim();
+      // Filter out some noise if necessary, but keep errors and warnings
+      if (line && !line.includes('detect_language')) {
+        console.warn(`    [Whisper Details] ${line}`);
+      }
+    });
+
     proc.on('close', code => {
       if (code === 0 && fs.existsSync(expectedSrt)) {
         logWhisper('Subtitle file generated', { srt: path.basename(expectedSrt), model });
