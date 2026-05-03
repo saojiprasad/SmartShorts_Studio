@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { runPipeline } = require('./pipelineManager');
-const { getVideoDuration, splitVideo, cutClip, processSegment, processSubtitleOnlySegment } = require('../utils/ffmpeg');
+const { getVideoDuration, cutClip, renderFixedPartClip, processSegment, processSubtitleOnlySegment } = require('../utils/ffmpeg');
 const { getVideoMetadata } = require('../utils/ffprobe');
 const { generateSubtitles, isWhisperAvailable } = require('../utils/whisper');
 const { generateSmartClips } = require('../ai/smartClipper');
@@ -17,10 +17,10 @@ const { logAi, logRender } = require('../utils/logger');
 
 const OUTPUT_DIR = path.resolve(process.env.OUTPUT_DIR || './outputs');
 
-function buildFixedClip(file, index, options, actualDuration = null) {
+function buildFixedClip(file, index, options, actualDuration = null, startOverride = null) {
   const targetDuration = Number(options.clipDuration) || 45;
   const duration = Number(actualDuration) || targetDuration;
-  const start = index * targetDuration;
+  const start = Number.isFinite(startOverride) ? startOverride : index * targetDuration;
   const clip = {
     index,
     path: file,
@@ -46,7 +46,7 @@ function buildFixedClip(file, index, options, actualDuration = null) {
     return {
       ...clip,
       grade: 'C',
-      title: `Clip ${String(index + 1).padStart(2, '0')}`,
+      title: `Part ${String(index + 1).padStart(2, '0')}`,
       description: '',
       hashtags: [],
       seo: null
@@ -64,6 +64,22 @@ function buildFixedClip(file, index, options, actualDuration = null) {
     hashtags: seo.hashtags,
     seo
   };
+}
+
+function buildFixedWindows(totalDuration, clipDuration) {
+  const duration = Number(clipDuration) || 45;
+  const windows = [];
+
+  for (let start = 0; start < totalDuration - 0.05; start += duration) {
+    const partDuration = Math.min(duration, totalDuration - start);
+    if (partDuration <= 0.25) continue;
+    windows.push({
+      start: Math.round(start * 100) / 100,
+      duration: Math.round(partDuration * 100) / 100
+    });
+  }
+
+  return windows;
 }
 
 function dedupeClipsForRender(clips, maxClips = 20) {
@@ -196,11 +212,17 @@ const PIPELINE_STEPS = [
           progress(80 + ((i + 1) / Math.max(1, smartClips.length)) * 18);
         }
       } else {
-        const segmentFiles = await splitVideo(ctx.originalFile, ctx.segmentsDir, ctx.options.clipDuration);
-        for (let index = 0; index < segmentFiles.length; index++) {
-          const file = segmentFiles[index];
-          const actualDuration = await getVideoDuration(file);
-          clipsToProcess.push(buildFixedClip(file, index, ctx.options, actualDuration));
+        const windows = buildFixedWindows(ctx.totalDuration || await getVideoDuration(ctx.originalFile), ctx.options.clipDuration);
+        for (let index = 0; index < windows.length; index++) {
+          const window = windows[index];
+          if (ctx.options.clippingMode === 'fixed') {
+            clipsToProcess.push(buildFixedClip(ctx.originalFile, index, ctx.options, window.duration, window.start));
+          } else {
+            const segmentPath = path.join(ctx.segmentsDir, `segment_${String(index).padStart(3, '0')}.mp4`);
+            await cutClip(ctx.originalFile, segmentPath, window.start, window.duration);
+            clipsToProcess.push(buildFixedClip(segmentPath, index, ctx.options, window.duration, window.start));
+          }
+          progress(10 + ((index + 1) / Math.max(1, windows.length)) * 88);
         }
       }
 
@@ -261,7 +283,18 @@ const PIPELINE_STEPS = [
           const finalPath = path.join(ctx.jobOutputDir, `${partPrefix}.mp4`);
           const finalOutputName = `${partPrefix}.mp4`;
 
-          fs.copyFileSync(clip.path, finalPath);
+          try {
+            logRender(`Job ${ctx.jobId}: fixed clip render ${partNumber}/${total}`, {
+              output: finalOutputName,
+              start: clip.start,
+              duration: clip.duration,
+              overlay: `PART ${partNumber}`
+            });
+            await renderFixedPartClip(clip.path, finalPath, partNumber, clip.start, clip.duration);
+          } catch (error) {
+            console.warn(`[FixedClips] Part label render failed for part ${partNumber}; falling back to precise cut. ${error.message}`);
+            await cutClip(clip.path, finalPath, clip.start, clip.duration);
+          }
 
           const stats = fs.statSync(finalPath);
           const publicBasePath = `/outputs/${ctx.jobId}`;
@@ -277,7 +310,7 @@ const PIPELINE_STEPS = [
             viralScore: 0,
             grade: 'C',
             hookText: '',
-            title: `Clip ${String(partNumber).padStart(2, '0')}`,
+            title: `Part ${String(partNumber).padStart(2, '0')}`,
             description: '',
             hashtags: [],
             seo: null,

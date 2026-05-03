@@ -198,6 +198,34 @@ function escapeSubtitleFilterPath(subtitlePath) {
   return subtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'");
 }
 
+async function renderFixedPartClip(inputPath, outputPath, partNumber, startSec, durationSec) {
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+
+  const filters = [
+    `drawtext=text='PART ${partNumber}':fontsize=54:fontcolor=white:` +
+    `x=(w-text_w)/2:y=54:borderw=4:bordercolor=black@0.88:` +
+    `box=1:boxcolor=black@0.46:boxborderw=14`,
+    'format=yuv420p'
+  ];
+
+  await runFFmpeg([
+    '-ss', String(Math.max(0, startSec)),
+    '-i', inputPath,
+    '-t', String(Math.max(0.1, durationSec)),
+    '-vf', filters.join(','),
+    '-map', '0:v:0',
+    '-map', '0:a?',
+    '-c:v', 'libx264',
+    '-preset', process.env.FFMPEG_PRESET || 'fast',
+    '-crf', process.env.FFMPEG_CRF || '23',
+    '-c:a', 'aac',
+    '-b:a', '160k',
+    '-movflags', '+faststart',
+    '-y',
+    outputPath
+  ], `Fixed part ${partNumber}`);
+}
+
 async function processSubtitleOnlySegment(inputPath, outputPath, subtitlePath, aspectRatio = '9:16', cropMode = 'smart_crop') {
   const faceFocus = cropMode === 'smart_crop' ? await getFaceFocus(inputPath) : null;
   const filters = buildFramingFilters(aspectRatio, cropMode, faceFocus);
@@ -272,6 +300,7 @@ module.exports = {
   getVideoDuration,
   splitVideo,
   cutClip,
+  renderFixedPartClip,
   processSegment,
   processSubtitleOnlySegment,
   RESOLUTION_MAP
