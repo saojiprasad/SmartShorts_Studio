@@ -68,6 +68,7 @@ const upload = multer({
 });
 
 const EFFECT_LEVELS = new Set(['low', 'medium', 'aggressive']);
+const FIXED_CLIP_DURATIONS = new Set([30, 45, 60, 75, 90, 120, 150, 180]);
 
 function normalizeEffectsLevel(value) {
   if (EFFECT_LEVELS.has(value)) return value;
@@ -78,7 +79,11 @@ function normalizeEffectsLevel(value) {
 function normalizeClipDuration(value) {
   const parsed = parseInt(value || process.env.DEFAULT_CLIP_DURATION || 45, 10);
   if (!Number.isFinite(parsed)) return 45;
-  return Math.max(8, Math.min(parsed, 59));
+  return FIXED_CLIP_DURATIONS.has(parsed) ? parsed : 45;
+}
+
+function normalizeClippingMode(value) {
+  return value === 'fixed' || value === 'subtitle_only' ? value : 'smart';
 }
 
 // ── POST /api/upload ──────────────────────────────────────────────────
@@ -140,22 +145,27 @@ router.post('/process', async (req, res) => {
     return res.status(409).json({ error: 'Job is already being processed' });
   }
 
+  const normalizedClippingMode = normalizeClippingMode(clippingMode);
+  const resolvedMode = normalizedClippingMode === 'smart' ? (mode || 'auto_viral') : normalizedClippingMode;
+  const aiModeEnabled = normalizedClippingMode === 'smart';
+
   // Store processing options
   updateJob(jobId, {
     options: {
       clipDuration: normalizeClipDuration(clipDuration),
-      addSubtitles: true,
+      addSubtitles: normalizedClippingMode !== 'fixed',
       aspectRatio: process.env.FORCE_VERTICAL_OUTPUT === 'false' ? (aspectRatio || '9:16') : '9:16',
       cropMode: cropMode || 'smart_crop',
-      enableBroll: enableBroll || false,
+      enableBroll: aiModeEnabled && Boolean(enableBroll),
       enableAudio: enableAudio !== false,
-      enableSfx: enableSfx !== false,
-      enableBgm: enableBgm !== false,
-      effectsLevel: normalizeEffectsLevel(effectsLevel),
+      enableSfx: aiModeEnabled && enableSfx !== false,
+      enableBgm: aiModeEnabled && enableBgm !== false,
+      effectsLevel: aiModeEnabled ? normalizeEffectsLevel(effectsLevel) : 'low',
       musicVolume: typeof musicVolume === 'number' ? musicVolume : 0.14,
       subtitleStyle: subtitleStyle || 'hormozi',
-      clippingMode: clippingMode || 'smart',
-      mode: mode || 'auto_viral'
+      clippingMode: normalizedClippingMode,
+      mode: resolvedMode,
+      aiModeEnabled
     }
   });
 

@@ -27,7 +27,7 @@ export class Upload {
   aspectRatio = signal('9:16');
 
   // AI options
-  clippingMode = signal<'smart' | 'fixed'>('smart');
+  clippingMode = signal<'smart' | 'fixed' | 'subtitle_only'>('smart');
   contentMode = signal('auto_viral');
   addSubtitles = signal(true);
   subtitleStyle = signal('hormozi');
@@ -42,15 +42,20 @@ export class Upload {
 
   // Presets
   clippingModes = [
-    { label: 'AI Smart Clips', value: 'smart', desc: 'Auto-detects hooks & energy', icon: 'auto_awesome' },
-    { label: 'Fixed Duration', value: 'fixed', desc: 'Splits strictly by time', icon: 'straighten' }
+    { label: 'AI Studio', value: 'smart', desc: 'AI selects and fully edits viral clips', icon: 'auto_awesome' },
+    { label: 'Fixed Clips', value: 'fixed', desc: 'Raw clips only, no editing', icon: 'straighten' },
+    { label: 'Subtitle Only', value: 'subtitle_only', desc: 'Fixed clips with burned captions only', icon: 'subtitles' }
   ];
 
   clipDurations = [
-    { value: 15, label: '15 seconds', icon: 'timer' },
     { value: 30, label: '30 seconds', icon: 'timer' },
     { value: 45, label: '45 seconds', icon: 'timer' },
-    { value: 58, label: '58 seconds', icon: 'timer' }
+    { value: 60, label: '60 seconds', icon: 'timer' },
+    { value: 75, label: '75 seconds', icon: 'timer' },
+    { value: 90, label: '90 seconds', icon: 'timer' },
+    { value: 120, label: '120 seconds', icon: 'timer' },
+    { value: 150, label: '150 seconds', icon: 'timer' },
+    { value: 180, label: '180 seconds', icon: 'timer' }
   ];
 
   contentModes = [
@@ -170,7 +175,7 @@ export class Upload {
   }
 
   // Setters for UI
-  setClippingMode(val: string) { this.clippingMode.set(val as 'smart' | 'fixed'); }
+  setClippingMode(val: string) { this.clippingMode.set(val as 'smart' | 'fixed' | 'subtitle_only'); }
   setContentMode(val: string) { this.contentMode.set(val); }
   setDuration(val: number) { this.clipDuration.set(val); }
   setAspectRatio(val: string) { this.aspectRatio.set(val); }
@@ -219,7 +224,7 @@ export class Upload {
 
     const options = {
       clippingMode: this.clippingMode(),
-      mode: this.contentMode(),
+      mode: this.clippingMode() === 'smart' ? this.contentMode() : undefined,
       clipDuration: this.clipDuration(),
       aspectRatio: this.aspectRatio(),
       cropMode: this.cropMode(),

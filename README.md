@@ -39,7 +39,7 @@ The frontend gives you a creator dashboard. The backend runs the AI/media pipeli
 
 1. Open the app at `http://localhost:4200`.
 2. Drag and drop a long video file.
-3. Choose the AI mode, caption style, effects level, SFX/BGM toggles, crop mode, aspect ratio, and optional B-roll settings.
+3. Choose AI Studio, Fixed Clips, or Subtitle Only. AI Studio shows creator modes/effects; Fixed Clips only asks for duration; Subtitle Only asks for duration and caption style.
 4. Click **Generate Viral Shorts**.
 5. Watch live progress.
 6. Preview each generated short.
@@ -49,7 +49,7 @@ The frontend gives you a creator dashboard. The backend runs the AI/media pipeli
 
 ## Creator Modes
 
-The upload screen includes several modes. Each mode changes clip selection, pacing, effects, music mood, captions, and retention strategy.
+The upload screen includes three clipping engines. AI Studio changes clip selection, pacing, effects, music mood, captions, and retention strategy. Fixed Clips exports raw time-based clips. Subtitle Only exports time-based clips with burned captions and no extra edit layers.
 
 | Mode | What It Prioritizes |
 |---|---|

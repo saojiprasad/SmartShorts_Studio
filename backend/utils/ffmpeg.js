@@ -194,6 +194,39 @@ function buildFramingFilters(aspectRatio, cropMode, faceFocus) {
   ];
 }
 
+function escapeSubtitleFilterPath(subtitlePath) {
+  return subtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'");
+}
+
+async function processSubtitleOnlySegment(inputPath, outputPath, subtitlePath, aspectRatio = '9:16', cropMode = 'smart_crop') {
+  const faceFocus = cropMode === 'smart_crop' ? await getFaceFocus(inputPath) : null;
+  const filters = buildFramingFilters(aspectRatio, cropMode, faceFocus);
+
+  if (subtitlePath && fs.existsSync(subtitlePath)) {
+    const escapedPath = escapeSubtitleFilterPath(subtitlePath);
+    filters.push(subtitlePath.endsWith('.ass')
+      ? `ass='${escapedPath}'`
+      : `subtitles='${escapedPath}':force_style='FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2,Shadow=1,Alignment=2,MarginV=80'`);
+  }
+
+  filters.push('format=yuv420p');
+
+  await runFFmpeg([
+    '-i', inputPath,
+    '-vf', filters.join(','),
+    '-map', '0:v:0',
+    '-map', '0:a?',
+    '-c:v', 'libx264',
+    '-preset', process.env.FFMPEG_PRESET || 'fast',
+    '-crf', process.env.FFMPEG_CRF || '23',
+    '-c:a', 'aac',
+    '-b:a', '160k',
+    '-movflags', '+faststart',
+    '-y',
+    outputPath
+  ], 'Subtitle-only render');
+}
+
 async function processSegment(inputPath, outputPath, partNumber, subtitlePath = null, aspectRatio = '9:16', cropMode = 'smart_crop') {
   const { w, h } = RESOLUTION_MAP[aspectRatio] || RESOLUTION_MAP['9:16'];
   const faceFocus = cropMode === 'smart_crop' ? await getFaceFocus(inputPath) : null;
@@ -240,5 +273,6 @@ module.exports = {
   splitVideo,
   cutClip,
   processSegment,
+  processSubtitleOnlySegment,
   RESOLUTION_MAP
 };

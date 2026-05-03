@@ -2,6 +2,21 @@
 
 Run these from the project root on the laptop where you want to process videos. I did not install anything on this machine.
 
+## Clip mode behavior
+
+SmartShorts Studio now has three clipping modes:
+
+```text
+AI Studio      = AI selects viral moments and applies full creator editing.
+Fixed Clips    = raw time-based clips only; no subtitles, effects, SFX, BGM, or thumbnails.
+Subtitle Only  = fixed time-based clips with burned captions only; no zooms, hook overlay, SFX, or BGM.
+```
+
+Fixed Clips and Subtitle Only use these durations only:
+
+```text
+30, 45, 60, 75, 90, 120, 150, 180 seconds
+```
 ## 1. Verify required tools
 
 ```powershell

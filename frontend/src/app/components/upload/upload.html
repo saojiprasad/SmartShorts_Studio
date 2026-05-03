@@ -103,7 +103,7 @@
         <!-- Content Mode OR Duration (Dynamic) -->
         <div class="option-group">
           <label class="option-label">
-            {{ clippingMode() === 'smart' ? 'Content Type (AI Mode)' : 'Clip Duration (Fixed Mode)' }}
+            {{ clippingMode() === 'smart' ? 'Content Type (AI Mode)' : clippingMode() === 'subtitle_only' ? 'Clip Duration (Subtitle Only)' : 'Clip Duration (Fixed Clips)' }}
           </label>
 
           @if (clippingMode() === 'smart') {
@@ -140,6 +140,7 @@
         </div>
 
         <!-- Aspect Ratio -->
+        @if (clippingMode() !== 'fixed') {
         <div class="option-group">
           <label class="option-label">Output Format</label>
           <div class="aspect-presets">
@@ -157,8 +158,10 @@
             }
           </div>
         </div>
+        }
 
         <!-- Enhancements -->
+        @if (clippingMode() !== 'fixed') {
         <div class="option-group">
           <h3>Enhancements</h3>
           <div class="toggles-row" style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
@@ -166,36 +169,40 @@
               <span class="material-icons-round">subtitles</span>
               <span>Viral Captions Always On</span>
             </div>
-            <label class="toggle-switch">
-              <input type="checkbox" [checked]="enableBroll()" (change)="toggleBroll()">
-              <span class="slider"></span>
-              <span class="toggle-label">Inject Local B-Roll</span>
-            </label>
-            <label class="toggle-switch">
-              <input type="checkbox" [checked]="enableSfx()" (change)="toggleSfx()">
-              <span class="slider"></span>
-              <span class="toggle-label">Auto SFX</span>
-            </label>
-            <label class="toggle-switch">
-              <input type="checkbox" [checked]="enableBgm()" (change)="toggleBgm()">
-              <span class="slider"></span>
-              <span class="toggle-label">Background Music</span>
-            </label>
-          </div>
-
-          <label class="option-label">Effects Level</label>
-          <div class="duration-presets effects-levels">
-            @for (level of effectsLevels; track level.value) {
-              <button
-                class="preset-btn style-btn"
-                [class.active]="effectsLevel() === level.value"
-                (click)="setEffectsLevel(level.value)"
-              >
-                <span style="font-weight: 600;">{{ level.label }}</span>
-                <span style="font-size: 0.75rem; opacity: 0.8; text-align: center;">{{ level.desc }}</span>
-              </button>
+            @if (clippingMode() === 'smart') {
+              <label class="toggle-switch">
+                <input type="checkbox" [checked]="enableBroll()" (change)="toggleBroll()">
+                <span class="slider"></span>
+                <span class="toggle-label">Inject Local B-Roll</span>
+              </label>
+              <label class="toggle-switch">
+                <input type="checkbox" [checked]="enableSfx()" (change)="toggleSfx()">
+                <span class="slider"></span>
+                <span class="toggle-label">Auto SFX</span>
+              </label>
+              <label class="toggle-switch">
+                <input type="checkbox" [checked]="enableBgm()" (change)="toggleBgm()">
+                <span class="slider"></span>
+                <span class="toggle-label">Background Music</span>
+              </label>
             }
           </div>
+
+          @if (clippingMode() === 'smart') {
+            <label class="option-label">Effects Level</label>
+            <div class="duration-presets effects-levels">
+              @for (level of effectsLevels; track level.value) {
+                <button
+                  class="preset-btn style-btn"
+                  [class.active]="effectsLevel() === level.value"
+                  (click)="setEffectsLevel(level.value)"
+                >
+                  <span style="font-weight: 600;">{{ level.label }}</span>
+                  <span style="font-size: 0.75rem; opacity: 0.8; text-align: center;">{{ level.desc }}</span>
+                </button>
+              }
+            </div>
+          }
 
           <!-- Subtitle Styles (Conditionally shown if Subtitles enabled) -->
           @if (addSubtitles()) {
@@ -216,8 +223,10 @@
             </div>
           }
         </div>
+        }
 
         <!-- Crop Mode -->
+        @if (clippingMode() !== 'fixed') {
         <div class="option-group">
           <label class="option-label">Framing / Cropping</label>
           <div class="duration-presets crop-modes">
@@ -233,6 +242,7 @@
             }
           </div>
         </div>
+        }
 
       </div>
 

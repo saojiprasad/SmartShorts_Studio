@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const { runPipeline } = require('./pipelineManager');
-const { getVideoDuration, splitVideo, cutClip, processSegment } = require('../utils/ffmpeg');
+const { getVideoDuration, splitVideo, cutClip, processSegment, processSubtitleOnlySegment } = require('../utils/ffmpeg');
 const { getVideoMetadata } = require('../utils/ffprobe');
 const { generateSubtitles, isWhisperAvailable } = require('../utils/whisper');
 const { generateSmartClips } = require('../ai/smartClipper');
@@ -17,18 +17,20 @@ const { logAi, logRender } = require('../utils/logger');
 
 const OUTPUT_DIR = path.resolve(process.env.OUTPUT_DIR || './outputs');
 
-function buildFixedClip(file, index, options) {
-  const duration = Number(options.clipDuration) || 45;
+function buildFixedClip(file, index, options, actualDuration = null) {
+  const targetDuration = Number(options.clipDuration) || 45;
+  const duration = Number(actualDuration) || targetDuration;
+  const start = index * targetDuration;
   const clip = {
     index,
     path: file,
-    start: index * duration,
-    end: (index + 1) * duration,
+    start,
+    end: start + duration,
     duration,
     viralScore: 0,
     hookText: '',
     emotion: 'neutral',
-    reason: 'Fixed duration split',
+    reason: options?.clippingMode === 'subtitle_only' ? 'Subtitle-only fixed duration split' : 'Fixed duration split',
     details: {
       hookScore: 0,
       energyScore: 0,
@@ -93,7 +95,7 @@ const PIPELINE_STEPS = [
       const metadata = await getVideoMetadata(ctx.originalFile);
       progress(60);
       const totalDuration = await getVideoDuration(ctx.originalFile);
-      console.log(`[Job ${ctx.jobId}] Step 1: Complete - Duration: ${totalDuration}s, Mode: ${normalizeMode(ctx.options.mode || 'auto_viral')}`);
+      console.log(`[Job ${ctx.jobId}] Step 1: Complete - Duration: ${totalDuration}s, Mode: ${ctx.options.mode || 'auto_viral'}, Clipping: ${ctx.options.clippingMode}`);
       logAi(`Job ${ctx.jobId}: source analysis complete`, {
         durationSeconds: Number(totalDuration.toFixed(2)),
         width: metadata.width,
@@ -116,14 +118,23 @@ const PIPELINE_STEPS = [
     name: 'transcribe_full',
     description: 'Creating transcript for hook and subtitle analysis',
     execute: async (ctx, progress) => {
-      const needsTranscript = ctx.options.clippingMode === 'smart';
-      if (!needsTranscript) {
+      if (ctx.options.clippingMode === 'fixed') {
         progress(100);
         return { fullSrt: null, whisperAvailable: false };
       }
 
       progress(10);
       const model = process.env.WHISPER_MODEL || 'large-v3';
+
+      if (ctx.options.clippingMode === 'subtitle_only') {
+        const whisperAvailable = await isWhisperAvailable();
+        logAi(`Job ${ctx.jobId}: subtitle-only mode will caption each fixed segment`, {
+          localWhisperAvailable: whisperAvailable,
+          pythonAiFallback: process.env.PYTHON_AI_ENABLED === 'true'
+        });
+        progress(100);
+        return { fullSrt: null, whisperAvailable };
+      }
       logAi(`Job ${ctx.jobId}: trying Python AI transcription`, { model });
       const pythonSrt = await transcribeWithPythonAi(ctx.originalFile, ctx.segmentsDir, model);
       if (pythonSrt) {
@@ -159,8 +170,8 @@ const PIPELINE_STEPS = [
     description: 'Scoring hooks, emotion, pacing, and retention windows',
     execute: async (ctx, progress) => {
       let clipsToProcess = [];
-      const mode = normalizeMode(ctx.options.mode || 'auto_viral');
-      logAi(`Job ${ctx.jobId}: detecting viral moments`, { mode });
+      const mode = ctx.options.clippingMode === 'smart' ? normalizeMode(ctx.options.mode || 'auto_viral') : ctx.options.mode;
+      logAi(`Job ${ctx.jobId}: selecting clip windows`, { mode, clippingMode: ctx.options.clippingMode });
 
       if (ctx.options.clippingMode === 'smart') {
         const smartClips = await generateSmartClips(
@@ -186,10 +197,16 @@ const PIPELINE_STEPS = [
         }
       } else {
         const segmentFiles = await splitVideo(ctx.originalFile, ctx.segmentsDir, ctx.options.clipDuration);
-        clipsToProcess = segmentFiles.map((file, index) => buildFixedClip(file, index, ctx.options));
+        for (let index = 0; index < segmentFiles.length; index++) {
+          const file = segmentFiles[index];
+          const actualDuration = await getVideoDuration(file);
+          clipsToProcess.push(buildFixedClip(file, index, ctx.options, actualDuration));
+        }
       }
 
-      clipsToProcess = dedupeClipsForRender(clipsToProcess, 20);
+      if (ctx.options.clippingMode === 'smart') {
+        clipsToProcess = dedupeClipsForRender(clipsToProcess, 20);
+      }
       logAi(`Job ${ctx.jobId}: unique clips selected`, {
         count: clipsToProcess.length,
         clips: clipsToProcess.map(clip => ({
@@ -227,8 +244,9 @@ const PIPELINE_STEPS = [
       const thumbnails = [];
       const titles = [];
       const total = ctx.clipsToProcess.length;
-      const mode = normalizeMode(ctx.options.mode || 'auto_viral');
-      const fixedOnly = ctx.options.clippingMode !== 'smart';
+      const mode = ctx.options.clippingMode === 'smart' ? normalizeMode(ctx.options.mode || 'auto_viral') : ctx.options.mode;
+      const fixedOnly = ctx.options.clippingMode === 'fixed';
+      const subtitleOnly = ctx.options.clippingMode === 'subtitle_only';
 
       if (total === 0) {
         progress(100);
@@ -260,6 +278,98 @@ const PIPELINE_STEPS = [
             grade: 'C',
             hookText: '',
             title: `Clip ${String(partNumber).padStart(2, '0')}`,
+            description: '',
+            hashtags: [],
+            seo: null,
+            reason: clip.reason,
+            emotion: 'neutral',
+            details: clip.details || {},
+            tips: [],
+            editPlan: null,
+            effectsLevel: 'off',
+            thumbnails: {}
+          };
+
+          processedClips.push(outputClip);
+          titles.push(outputClip.title);
+          updateJob(ctx.jobId, {
+            clips: [...processedClips],
+            processedClips: partNumber,
+            totalClips: total,
+            thumbnails: [...thumbnails],
+            titles: [...titles]
+          });
+          progress(((i + 1) / total) * 100);
+        }
+
+        return { processedClips, thumbnails, titles };
+      }
+
+      if (subtitleOnly) {
+        for (let i = 0; i < total; i++) {
+          const clip = ctx.clipsToProcess[i];
+          const partNumber = i + 1;
+          const partPrefix = `Part_${String(partNumber).padStart(2, '0')}`;
+          const finalPath = path.join(ctx.jobOutputDir, `${partPrefix}.mp4`);
+          const finalOutputName = `${partPrefix}.mp4`;
+          const enrichedClip = {
+            ...clip,
+            title: `Subtitle Clip ${String(partNumber).padStart(2, '0')}`,
+            description: '',
+            hashtags: [],
+            seo: null
+          };
+
+          let subtitlePath = path.join(ctx.segmentsDir, `${partPrefix}_subtitle_only.ass`);
+          const clipModel = process.env.WHISPER_CLIP_MODEL || process.env.WHISPER_MODEL || 'large-v3';
+          logAi(`Job ${ctx.jobId}: creating subtitle-only captions for clip ${partNumber}/${total}`, { model: clipModel });
+          const pythonSrt = await transcribeWithPythonAi(clip.path, ctx.segmentsDir, clipModel);
+          const segSrt = pythonSrt || (ctx.whisperAvailable ? await generateSubtitles(clip.path, ctx.segmentsDir, clipModel) : null);
+          if (segSrt) {
+            subtitlePath = generateStyledSubtitles(segSrt, subtitlePath, ctx.options.subtitleStyle || 'hormozi') || subtitlePath;
+          }
+
+          if (!subtitlePath || !fs.existsSync(subtitlePath)) {
+            logAi(`Job ${ctx.jobId}: using fallback subtitle-only captions for clip ${partNumber}/${total}`);
+            subtitlePath = generateFallbackSubtitles(
+              path.join(ctx.segmentsDir, `${partPrefix}_subtitle_only_fallback.ass`),
+              enrichedClip,
+              ctx.options.subtitleStyle || 'hormozi'
+            );
+          }
+
+          try {
+            logRender(`Job ${ctx.jobId}: subtitle-only render ${partNumber}/${total}`, {
+              output: finalOutputName,
+              subtitles: path.basename(subtitlePath)
+            });
+            await processSubtitleOnlySegment(
+              clip.path,
+              finalPath,
+              subtitlePath,
+              ctx.options.aspectRatio,
+              ctx.options.cropMode
+            );
+          } catch (error) {
+            console.warn(`[SubtitleOnly] Caption render failed for part ${partNumber}; copying source segment. ${error.message}`);
+            fs.copyFileSync(clip.path, finalPath);
+          }
+
+          const stats = fs.statSync(finalPath);
+          const publicBasePath = `/outputs/${ctx.jobId}`;
+          const outputClip = {
+            name: finalOutputName,
+            partNumber,
+            path: `${publicBasePath}/${finalOutputName}`,
+            size: `${(stats.size / (1024 * 1024)).toFixed(2)} MB`,
+            sizeBytes: stats.size,
+            duration: Number(clip.duration).toFixed(1),
+            start: clip.start,
+            end: clip.end,
+            viralScore: 0,
+            grade: 'C',
+            hookText: '',
+            title: enrichedClip.title,
             description: '',
             hashtags: [],
             seo: null,
